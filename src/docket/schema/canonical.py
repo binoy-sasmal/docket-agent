@@ -4,7 +4,7 @@ Every writer of fixtures/rendered/ or fixtures/frozen/ must go through this
 module. Without a single canonical form, byte-for-byte content hashes are
 noise -- two semantically identical documents could hash differently because
 of key order, float formatting, or line-ending differences. See
-docs/PROJECT.md section 6.1 and CLAUDE.md.
+docs/PROJECT.md section 6.1 and AGENTS.md.
 
 Rules:
 - UTF-8, LF line endings, trailing newline.

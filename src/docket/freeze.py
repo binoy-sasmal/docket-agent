@@ -1,7 +1,7 @@
 """Promote the derived selection into the frozen Tier 1 fixture.
 
 This is the ONLY module in the whole project allowed to write under
-fixtures/frozen/ or evals/golden/ (docs/PROJECT.md section 6.1, CLAUDE.md).
+fixtures/frozen/ or evals/golden/ (docs/PROJECT.md section 6.1, AGENTS.md).
 It lives outside src/docket/derive/ specifically so that constraint is
 checkable: tests/test_architecture.py asserts the string "fixtures/frozen"
 appears nowhere under derive/, which would be meaningless if this module

@@ -10,6 +10,9 @@ realistic ERP process.
 
 Full project description: [docs/PROJECT.md](docs/PROJECT.md).
 
+Coding-agent instructions live in [AGENTS.md](AGENTS.md). `CLAUDE.md` is kept as
+a compatibility pointer for Claude Code.
+
 ## Status
 
 Session 1 (BPIC 2019 derivation) is code-complete and awaiting the human

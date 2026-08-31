@@ -7,7 +7,7 @@ full field table and the reasoning behind each modelling choice. These names
 were checked against the public API reference, not a live Business
 Accelerator Hub tenant (none was available for this project) -- if a name
 turns out to be wrong, fixtures/rendered/ is deliberately re-issuable (see
-docs/PROJECT.md section 6.1 / CLAUDE.md), so re-render rather than editing
+docs/PROJECT.md section 6.1 / AGENTS.md), so re-render rather than editing
 JSON by hand.
 
 Money is always decimal.Decimal, never float -- see
@@ -109,7 +109,7 @@ class APurchaseOrderItem(_Frozen):
     types) -- kept as the category name rather than mapped onto a numeric
     SAP item-category code, since no such mapping is documented and
     inventing one would be exactly the kind of unlabelled fabrication
-    CLAUDE.md warns against.
+    AGENTS.md warns against.
     """
     AccountAssignmentCategory: str | None = None
 
