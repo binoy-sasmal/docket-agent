@@ -35,7 +35,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src"]
+files = ["src", "tools"]
 
 [tool.pytest.ini_options]
 markers = [
