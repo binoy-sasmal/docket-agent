@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Raw source data -- large, external, re-downloadable. SOURCES.md (checksums,
+# URLs, licence) is committed; the data itself is not.
+data/raw/*
+!data/raw/SOURCES.md
+
+# Sampler output on the way to the frozen selection. Never the frozen
+# selection itself -- fixtures/frozen/ is committed and is a different path.
+fixtures/derived/*
+!fixtures/derived/.gitkeep
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

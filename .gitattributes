@@ -1,0 +1,21 @@
+# Reproducibility matters more than platform-native line endings in this
+# project: fixtures/frozen/ and fixtures/rendered/ are content-hashed, and a
+# checkout-time LF->CRLF rewrite would silently break every manifest hash.
+# Force LF everywhere it's text; let git skip binary formats entirely.
+
+* text=auto eol=lf
+
+*.json  text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.txt   text eol=lf
+*.in    text eol=lf
+*.sha256 text eol=lf
+
+*.xes gitattributes -text
+*.csv gitattributes -text
+*.zip binary
+*.gz  binary

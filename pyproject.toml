@@ -1,0 +1,43 @@
+[project]
+name = "docket"
+version = "0.1.0"
+description = "An ERP invoice exception agent that investigates, cites its evidence, and proposes -- but cannot post."
+requires-python = ">=3.12,<3.13"
+readme = "README.md"
+dependencies = [
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "pydantic>=2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: full-log runs, not part of the fast default suite",
+]
+testpaths = ["tests"]
