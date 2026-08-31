@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal
 
+from docket.policy import Disposition, PolicyDecision, PolicyInput, evaluate_policy
 from docket.schema.procurement import (
     AMaterialDocumentEntry,
     APurchaseOrder,
@@ -21,7 +22,6 @@ from docket.schema.procurement import (
 from docket.tools.odata import ReadOnlyODataTools, ToolCall
 
 EvidenceKind = Literal["purchase_order_item", "material_document", "supplier_invoice"]
-Disposition = Literal["propose_post", "needs_review"]
 
 
 @dataclass(frozen=True)
@@ -57,18 +57,13 @@ class Reconciliation:
     case: CaseKey
     claims: tuple[Claim, ...]
     purchase_order_amount: Decimal
+    goods_receipt_expected: bool
+    goods_receipt_count: int
+    invoice_count: int
     goods_receipt_amount: Decimal | None
     invoice_amount: Decimal
     goods_receipt_variance: Decimal | None
     invoice_variance: Decimal
-
-
-@dataclass(frozen=True)
-class PolicyDecision:
-    case: CaseKey
-    within_tolerance: bool
-    requires_human_approval: bool
-    allowed_dispositions: tuple[Disposition, ...]
 
 
 @dataclass(frozen=True)
@@ -180,6 +175,9 @@ def reconciler(investigation: Investigation) -> Reconciliation:
         case=investigation.case,
         claims=tuple(claims),
         purchase_order_amount=purchase_order_amount,
+        goods_receipt_expected=item.GoodsReceiptIsExpected,
+        goods_receipt_count=len(original_grs),
+        invoice_count=len(original_invoices),
         goods_receipt_amount=goods_receipt_amount,
         invoice_amount=invoice_amount,
         goods_receipt_variance=goods_receipt_variance,
@@ -189,16 +187,15 @@ def reconciler(investigation: Investigation) -> Reconciliation:
 
 def policy_gate(reconciliation: Reconciliation) -> PolicyDecision:
     """Deterministic policy gate. No model call belongs in this node."""
-    gr_ok = (
-        reconciliation.goods_receipt_variance in (None, Decimal("0"))
-    )
-    invoice_ok = reconciliation.invoice_variance == Decimal("0")
-    within_tolerance = gr_ok and invoice_ok
-    return PolicyDecision(
-        case=reconciliation.case,
-        within_tolerance=within_tolerance,
-        requires_human_approval=True,
-        allowed_dispositions=("propose_post",) if within_tolerance else ("needs_review",),
+    return evaluate_policy(
+        PolicyInput(
+            purchase_order_amount=reconciliation.purchase_order_amount,
+            goods_receipt_expected=reconciliation.goods_receipt_expected,
+            goods_receipt_count=reconciliation.goods_receipt_count,
+            invoice_count=reconciliation.invoice_count,
+            goods_receipt_variance=reconciliation.goods_receipt_variance,
+            invoice_variance=reconciliation.invoice_variance,
+        )
     )
 
 
@@ -206,7 +203,7 @@ def proposer(reconciliation: Reconciliation, policy: PolicyDecision) -> Proposal
     """Emit a proposal object only; this is not an ERP write path."""
     disposition = policy.allowed_dispositions[0]
     summary = (
-        "Documents reconcile exactly; propose posting for human approval."
+        "Documents reconcile within policy; propose posting for human approval."
         if disposition == "propose_post"
         else "Documents do not reconcile exactly; keep the item in review."
     )

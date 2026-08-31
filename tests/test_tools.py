@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from docket.fixture_store import FixtureLookupError, FrozenFixtureStore
-from docket.tools.odata import ReadOnlyODataTools
+from docket.tools.odata import ReadOnlyODataTools, ToolAccessDenied
 
 
 def test_fixture_store_loads_only_frozen_selected_cases() -> None:
@@ -42,3 +42,10 @@ def test_odata_tools_record_read_trajectory() -> None:
         "PurchaseOrder": "4507075965",
         "PurchaseOrderItem": "00050",
     }
+
+
+def test_odata_tools_reject_non_allowlisted_tool_names() -> None:
+    tools = ReadOnlyODataTools()
+
+    with pytest.raises(ToolAccessDenied, match="not allowlisted"):
+        tools._record("post_supplier_invoice", SupplierInvoice="SI1")

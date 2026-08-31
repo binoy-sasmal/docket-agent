@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from docket.fixture_store import FixtureLookupError, FrozenFixtureStore
 from docket.schema.procurement import (
@@ -22,6 +23,10 @@ class ToolCall:
     arguments: dict[str, str]
 
 
+class ToolAccessDenied(PermissionError):
+    """Raised if code tries to record a non-allowlisted tool."""
+
+
 class ReadOnlyODataTools:
     """Small SAP-shaped lookup facade for selected fixture documents.
 
@@ -29,6 +34,15 @@ class ReadOnlyODataTools:
     generic filesystem lookup. All methods read from the frozen-selected
     rendered fixture and return immutable pydantic models.
     """
+
+    ALLOWED_TOOL_NAMES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "get_A_PurchaseOrder",
+            "get_A_PurchaseOrderItem",
+            "list_A_MaterialDocumentItem",
+            "list_A_SupplierInvoiceItemPurOrdRef",
+        }
+    )
 
     def __init__(self, store: FrozenFixtureStore | None = None) -> None:
         self._store = store or FrozenFixtureStore()
@@ -40,6 +54,10 @@ class ReadOnlyODataTools:
     @property
     def tool_calls(self) -> tuple[ToolCall, ...]:
         return tuple(self._tool_calls)
+
+    @property
+    def allowed_tool_names(self) -> frozenset[str]:
+        return self.ALLOWED_TOOL_NAMES
 
     def get_A_PurchaseOrder(self, PurchaseOrder: str) -> APurchaseOrder:
         """Return one `A_PurchaseOrder` header by key."""
@@ -99,4 +117,6 @@ class ReadOnlyODataTools:
         )
 
     def _record(self, name: str, **arguments: str) -> None:
+        if name not in self.ALLOWED_TOOL_NAMES:
+            raise ToolAccessDenied(f"tool {name!r} is not allowlisted for read-only access")
         self._tool_calls.append(ToolCall(name=name, arguments=dict(arguments)))

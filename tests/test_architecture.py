@@ -15,11 +15,15 @@ not yet checkable because the modules do not exist.
 from __future__ import annotations
 
 import ast
+import inspect
 from pathlib import Path
+
+from docket.tools.odata import ReadOnlyODataTools
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DERIVE_DIR = REPO_ROOT / "src" / "docket" / "derive"
 SCHEMA_DIR = REPO_ROOT / "src" / "docket" / "schema"
+POLICY_MODULE = REPO_ROOT / "src" / "docket" / "policy.py"
 
 # Any library that could make an LLM call. Extend this list as new LLM/agent
 # dependencies are added to the project in later sessions.
@@ -117,6 +121,34 @@ def test_no_llm_library_in_the_lockfiles_yet() -> None:
         "Session 1's lockfiles must not pull in an LLM library. Found:\n"
         + "\n".join(offenders)
     )
+
+
+def test_policy_gate_module_imports_no_llm_library() -> None:
+    tree = ast.parse(POLICY_MODULE.read_text(encoding="utf-8"), filename=str(POLICY_MODULE))
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        names: list[str] = []
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names = [node.module]
+
+        for name in names:
+            if name.split(".")[0].lower() in LLM_LIBRARY_PREFIXES:
+                offenders.append(name)
+
+    assert not offenders, "policy.py must not import LLM libraries: " + ", ".join(offenders)
+
+
+def test_odata_tool_public_methods_are_allowlisted_reads() -> None:
+    public_methods = {
+        name
+        for name, member in inspect.getmembers(ReadOnlyODataTools, inspect.isfunction)
+        if not name.startswith("_")
+    }
+
+    assert public_methods == set(ReadOnlyODataTools.ALLOWED_TOOL_NAMES)
+    assert all(name.startswith(("get_", "list_")) for name in public_methods)
 
 
 # --- Documented, not yet checkable: add these when the modules exist (Session 3+) ---
