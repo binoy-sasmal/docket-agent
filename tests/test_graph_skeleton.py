@@ -14,6 +14,7 @@ def test_happy_path_runs_one_case_end_to_end_without_posting() -> None:
     assert result.policy.reason == "exact_match"
     assert result.proposal.disposition == "propose_post"
     assert result.proposal.can_post is False
+    assert result.proposal.supplier == "vendorID_0103"
     assert [call.name for call in result.investigation.tool_calls] == [
         "get_A_PurchaseOrder",
         "get_A_PurchaseOrderItem",

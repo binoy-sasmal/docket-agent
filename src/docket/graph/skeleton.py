@@ -55,6 +55,7 @@ class Investigation:
 @dataclass(frozen=True)
 class Reconciliation:
     case: CaseKey
+    supplier: str
     claims: tuple[Claim, ...]
     purchase_order_amount: Decimal
     goods_receipt_expected: bool
@@ -69,6 +70,7 @@ class Reconciliation:
 @dataclass(frozen=True)
 class Proposal:
     case: CaseKey
+    supplier: str
     disposition: Disposition
     summary: str
     claims: tuple[Claim, ...]
@@ -173,6 +175,7 @@ def reconciler(investigation: Investigation) -> Reconciliation:
 
     return Reconciliation(
         case=investigation.case,
+        supplier=investigation.purchase_order.Supplier,
         claims=tuple(claims),
         purchase_order_amount=purchase_order_amount,
         goods_receipt_expected=item.GoodsReceiptIsExpected,
@@ -209,6 +212,7 @@ def proposer(reconciliation: Reconciliation, policy: PolicyDecision) -> Proposal
     )
     return Proposal(
         case=reconciliation.case,
+        supplier=reconciliation.supplier,
         disposition=disposition,
         summary=summary,
         claims=reconciliation.claims,
