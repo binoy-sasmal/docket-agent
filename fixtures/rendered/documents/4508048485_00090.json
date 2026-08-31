@@ -1,0 +1,67 @@
+{
+  "field_group_provenance": {
+    "currency": "log-derived",
+    "document_counts_ordering_timestamps_users": "log-derived",
+    "match_flags": "log-derived",
+    "material_plant_storage_location": "null",
+    "per_document_monetary_amount": "log-derived",
+    "po_identity_and_classification": "log-derived",
+    "po_item_net_amount": "log-derived",
+    "quantity_and_unit": "null"
+  },
+  "goods_receipts": [
+    {
+      "Amount": "0.00",
+      "AmountProvenance": "log-derived",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_086"
+      },
+      "DocumentDate": "2018-09-12T14:34:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD696506256457729",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-12T14:34:00+00:00",
+      "PurchaseOrder": "4508048485",
+      "PurchaseOrderItem": "00090",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    }
+  ],
+  "invoices": [],
+  "purchase_order": {
+    "CompanyCode": "companyID_0000",
+    "CreatedByUser": {
+      "is_batch_user": false,
+      "user_id": "user_102"
+    },
+    "DocumentCurrency": "EUR",
+    "PurchaseOrder": "4508048485",
+    "PurchaseOrderDate": "2018-08-10T12:45:00+00:00",
+    "PurchaseOrderType": "Standard PO",
+    "PurchasingGroup": null,
+    "PurchasingOrganization": null,
+    "Supplier": "vendorID_0188"
+  },
+  "purchase_order_item": {
+    "AccountAssignmentCategory": null,
+    "DocumentCurrency": "EUR",
+    "GoodsReceiptIsExpected": true,
+    "InvoiceIsGoodsReceiptBased": false,
+    "IsCompletelyDelivered": null,
+    "IsFinallyInvoiced": null,
+    "Material": null,
+    "MaterialGroup": null,
+    "NetPriceAmount": "0.0",
+    "OrderQuantity": null,
+    "Plant": null,
+    "PurchaseOrder": "4508048485",
+    "PurchaseOrderItem": "00090",
+    "PurchaseOrderItemCategory": "Consignment",
+    "PurchaseOrderQuantityUnit": null
+  },
+  "source_case_id": "4508048485_00090"
+}

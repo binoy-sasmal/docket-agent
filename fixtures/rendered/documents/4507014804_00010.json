@@ -1,0 +1,126 @@
+{
+  "field_group_provenance": {
+    "currency": "log-derived",
+    "document_counts_ordering_timestamps_users": "log-derived",
+    "match_flags": "log-derived",
+    "material_plant_storage_location": "null",
+    "per_document_monetary_amount": "authored",
+    "po_identity_and_classification": "log-derived",
+    "po_item_net_amount": "log-derived",
+    "quantity_and_unit": "null"
+  },
+  "goods_receipts": [
+    {
+      "Amount": "1067.00",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_049"
+      },
+      "DocumentDate": "2018-03-13T13:21:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD205342386421761",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-03-13T13:21:00+00:00",
+      "PurchaseOrder": "4507014804",
+      "PurchaseOrderItem": "00010",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1067.00",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_049"
+      },
+      "DocumentDate": "2018-03-20T06:45:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD205342386421762",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-03-20T06:45:00+00:00",
+      "PurchaseOrder": "4507014804",
+      "PurchaseOrderItem": "00010",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    }
+  ],
+  "invoices": [
+    {
+      "AmountProvenance": "log-derived",
+      "CompanyCode": "companyID_0000",
+      "DocumentCurrency": "EUR",
+      "DocumentDate": "2018-04-06T10:43:00+00:00",
+      "FiscalYear": "2018",
+      "InvoicingParty": "vendorID_0283",
+      "PaymentTerms": null,
+      "PostingDate": "2018-04-06T10:43:00+00:00",
+      "PurchaseOrder": "4507014804",
+      "PurchaseOrderItem": "00010",
+      "QuantityInPurchaseOrderUnit": null,
+      "ReferencesMaterialDocument": null,
+      "ReverseDocument": null,
+      "SupplierInvoice": "SI205342386421764",
+      "SupplierInvoiceIDByInvcgParty": "INV-205342386421764",
+      "SupplierInvoiceItem": "000001",
+      "SupplierInvoiceItemAmount": "2134.00"
+    },
+    {
+      "AmountProvenance": "log-derived",
+      "CompanyCode": "companyID_0000",
+      "DocumentCurrency": "EUR",
+      "DocumentDate": "2018-04-25T11:48:00+00:00",
+      "FiscalYear": "2018",
+      "InvoicingParty": "vendorID_0283",
+      "PaymentTerms": null,
+      "PostingDate": "2018-04-25T11:48:00+00:00",
+      "PurchaseOrder": "4507014804",
+      "PurchaseOrderItem": "00010",
+      "QuantityInPurchaseOrderUnit": null,
+      "ReferencesMaterialDocument": null,
+      "ReverseDocument": "SI205342386421764",
+      "SupplierInvoice": "SI205342386421766",
+      "SupplierInvoiceIDByInvcgParty": "INV-205342386421766",
+      "SupplierInvoiceItem": "000001",
+      "SupplierInvoiceItemAmount": "2134.00"
+    }
+  ],
+  "purchase_order": {
+    "CompanyCode": "companyID_0000",
+    "CreatedByUser": {
+      "is_batch_user": false,
+      "user_id": "user_045"
+    },
+    "DocumentCurrency": "EUR",
+    "PurchaseOrder": "4507014804",
+    "PurchaseOrderDate": "2018-03-07T14:48:00+00:00",
+    "PurchaseOrderType": "Standard PO",
+    "PurchasingGroup": null,
+    "PurchasingOrganization": null,
+    "Supplier": "vendorID_0283"
+  },
+  "purchase_order_item": {
+    "AccountAssignmentCategory": null,
+    "DocumentCurrency": "EUR",
+    "GoodsReceiptIsExpected": true,
+    "InvoiceIsGoodsReceiptBased": false,
+    "IsCompletelyDelivered": null,
+    "IsFinallyInvoiced": null,
+    "Material": null,
+    "MaterialGroup": null,
+    "NetPriceAmount": "2134.0",
+    "OrderQuantity": null,
+    "Plant": null,
+    "PurchaseOrder": "4507014804",
+    "PurchaseOrderItem": "00010",
+    "PurchaseOrderItemCategory": "3-way match, invoice before GR",
+    "PurchaseOrderQuantityUnit": null
+  },
+  "source_case_id": "4507014804_00010"
+}

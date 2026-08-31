@@ -1,0 +1,66 @@
+{
+  "field_group_provenance": {
+    "currency": "log-derived",
+    "document_counts_ordering_timestamps_users": "log-derived",
+    "match_flags": "log-derived",
+    "material_plant_storage_location": "null",
+    "per_document_monetary_amount": "log-derived",
+    "po_identity_and_classification": "log-derived",
+    "po_item_net_amount": "log-derived",
+    "quantity_and_unit": "null"
+  },
+  "goods_receipts": [],
+  "invoices": [
+    {
+      "AmountProvenance": "log-derived",
+      "CompanyCode": "companyID_0003",
+      "DocumentCurrency": "EUR",
+      "DocumentDate": "2018-07-24T12:07:00+00:00",
+      "FiscalYear": "2018",
+      "InvoicingParty": "vendorID_1851",
+      "PaymentTerms": null,
+      "PostingDate": "2018-07-24T12:07:00+00:00",
+      "PurchaseOrder": "4507076142",
+      "PurchaseOrderItem": "00020",
+      "QuantityInPurchaseOrderUnit": null,
+      "ReferencesMaterialDocument": null,
+      "ReverseDocument": null,
+      "SupplierInvoice": "SI1078148460445703",
+      "SupplierInvoiceIDByInvcgParty": "INV-1078148460445703",
+      "SupplierInvoiceItem": "000001",
+      "SupplierInvoiceItemAmount": "264.00"
+    }
+  ],
+  "purchase_order": {
+    "CompanyCode": "companyID_0003",
+    "CreatedByUser": {
+      "is_batch_user": false,
+      "user_id": "user_602"
+    },
+    "DocumentCurrency": "EUR",
+    "PurchaseOrder": "4507076142",
+    "PurchaseOrderDate": "2018-05-04T10:44:00+00:00",
+    "PurchaseOrderType": "Framework order",
+    "PurchasingGroup": null,
+    "PurchasingOrganization": null,
+    "Supplier": "vendorID_1851"
+  },
+  "purchase_order_item": {
+    "AccountAssignmentCategory": null,
+    "DocumentCurrency": "EUR",
+    "GoodsReceiptIsExpected": false,
+    "InvoiceIsGoodsReceiptBased": false,
+    "IsCompletelyDelivered": null,
+    "IsFinallyInvoiced": null,
+    "Material": null,
+    "MaterialGroup": null,
+    "NetPriceAmount": "264.0",
+    "OrderQuantity": null,
+    "Plant": null,
+    "PurchaseOrder": "4507076142",
+    "PurchaseOrderItem": "00020",
+    "PurchaseOrderItemCategory": "2-way match",
+    "PurchaseOrderQuantityUnit": null
+  },
+  "source_case_id": "4507076142_00020"
+}

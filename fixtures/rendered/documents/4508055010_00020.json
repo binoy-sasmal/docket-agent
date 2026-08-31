@@ -1,0 +1,127 @@
+{
+  "field_group_provenance": {
+    "currency": "log-derived",
+    "document_counts_ordering_timestamps_users": "log-derived",
+    "match_flags": "log-derived",
+    "material_plant_storage_location": "null",
+    "per_document_monetary_amount": "authored",
+    "po_identity_and_classification": "log-derived",
+    "po_item_net_amount": "log-derived",
+    "quantity_and_unit": "null"
+  },
+  "goods_receipts": [
+    {
+      "Amount": "1446.66",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_048"
+      },
+      "DocumentDate": "2018-09-20T09:09:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD788147973652482",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-20T09:09:00+00:00",
+      "PurchaseOrder": "4508055010",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1446.66",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_048"
+      },
+      "DocumentDate": "2018-09-20T09:11:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD788147973652483",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-20T09:11:00+00:00",
+      "PurchaseOrder": "4508055010",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1446.68",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_048"
+      },
+      "DocumentDate": "2018-09-20T09:15:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD788147973652484",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-20T09:15:00+00:00",
+      "PurchaseOrder": "4508055010",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    }
+  ],
+  "invoices": [
+    {
+      "AmountProvenance": "log-derived",
+      "CompanyCode": "companyID_0000",
+      "DocumentCurrency": "EUR",
+      "DocumentDate": "2018-10-16T15:07:00+00:00",
+      "FiscalYear": "2018",
+      "InvoicingParty": "vendorID_0386",
+      "PaymentTerms": null,
+      "PostingDate": "2018-10-16T15:07:00+00:00",
+      "PurchaseOrder": "4508055010",
+      "PurchaseOrderItem": "00020",
+      "QuantityInPurchaseOrderUnit": null,
+      "ReferencesMaterialDocument": null,
+      "ReverseDocument": null,
+      "SupplierInvoice": "SI788147973652486",
+      "SupplierInvoiceIDByInvcgParty": "INV-788147973652486",
+      "SupplierInvoiceItem": "000001",
+      "SupplierInvoiceItemAmount": "4340.00"
+    }
+  ],
+  "purchase_order": {
+    "CompanyCode": "companyID_0000",
+    "CreatedByUser": {
+      "is_batch_user": false,
+      "user_id": "user_374"
+    },
+    "DocumentCurrency": "EUR",
+    "PurchaseOrder": "4508055010",
+    "PurchaseOrderDate": "2018-09-12T00:00:00+00:00",
+    "PurchaseOrderType": "Standard PO",
+    "PurchasingGroup": null,
+    "PurchasingOrganization": null,
+    "Supplier": "vendorID_0386"
+  },
+  "purchase_order_item": {
+    "AccountAssignmentCategory": null,
+    "DocumentCurrency": "EUR",
+    "GoodsReceiptIsExpected": true,
+    "InvoiceIsGoodsReceiptBased": false,
+    "IsCompletelyDelivered": null,
+    "IsFinallyInvoiced": null,
+    "Material": null,
+    "MaterialGroup": null,
+    "NetPriceAmount": "4340.0",
+    "OrderQuantity": null,
+    "Plant": null,
+    "PurchaseOrder": "4508055010",
+    "PurchaseOrderItem": "00020",
+    "PurchaseOrderItemCategory": "3-way match, invoice before GR",
+    "PurchaseOrderQuantityUnit": null
+  },
+  "source_case_id": "4508055010_00020"
+}

@@ -1,0 +1,206 @@
+{
+  "field_group_provenance": {
+    "currency": "log-derived",
+    "document_counts_ordering_timestamps_users": "log-derived",
+    "match_flags": "log-derived",
+    "material_plant_storage_location": "null",
+    "per_document_monetary_amount": "authored",
+    "po_identity_and_classification": "log-derived",
+    "po_item_net_amount": "log-derived",
+    "quantity_and_unit": "null"
+  },
+  "goods_receipts": [
+    {
+      "Amount": "1432.33",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_046"
+      },
+      "DocumentDate": "2018-09-12T14:42:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD562159679438850",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-12T14:42:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1432.33",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_046"
+      },
+      "DocumentDate": "2018-09-12T14:44:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD562159679438851",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-12T14:44:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1432.33",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_046"
+      },
+      "DocumentDate": "2018-09-25T07:54:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD562159679438854",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-25T07:54:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1432.33",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_046"
+      },
+      "DocumentDate": "2018-09-25T07:54:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD562159679438853",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-25T07:54:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1432.33",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_046"
+      },
+      "DocumentDate": "2018-09-25T07:54:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD562159679438855",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-25T07:54:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    },
+    {
+      "Amount": "1432.35",
+      "AmountProvenance": "authored",
+      "CreatedByUser": {
+        "is_batch_user": false,
+        "user_id": "user_046"
+      },
+      "DocumentDate": "2018-09-25T07:55:00+00:00",
+      "EntryUnit": null,
+      "GoodsMovementType": "101",
+      "MaterialDocument": "MD562159679438856",
+      "MaterialDocumentItem": "0001",
+      "MaterialDocumentYear": "2018",
+      "Plant": null,
+      "PostingDate": "2018-09-25T07:55:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInEntryUnit": null,
+      "ReversesMaterialDocument": null
+    }
+  ],
+  "invoices": [
+    {
+      "AmountProvenance": "authored",
+      "CompanyCode": "companyID_0000",
+      "DocumentCurrency": "EUR",
+      "DocumentDate": "2018-10-01T10:28:00+00:00",
+      "FiscalYear": "2018",
+      "InvoicingParty": "vendorID_0810",
+      "PaymentTerms": null,
+      "PostingDate": "2018-10-01T10:28:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInPurchaseOrderUnit": null,
+      "ReferencesMaterialDocument": null,
+      "ReverseDocument": null,
+      "SupplierInvoice": "SI562159679438857",
+      "SupplierInvoiceIDByInvcgParty": "INV-562159679438857",
+      "SupplierInvoiceItem": "000001",
+      "SupplierInvoiceItemAmount": "4297.00"
+    },
+    {
+      "AmountProvenance": "authored",
+      "CompanyCode": "companyID_0000",
+      "DocumentCurrency": "EUR",
+      "DocumentDate": "2018-12-13T16:24:00+00:00",
+      "FiscalYear": "2018",
+      "InvoicingParty": "vendorID_0810",
+      "PaymentTerms": null,
+      "PostingDate": "2018-12-13T16:24:00+00:00",
+      "PurchaseOrder": "4507039086",
+      "PurchaseOrderItem": "00020",
+      "QuantityInPurchaseOrderUnit": null,
+      "ReferencesMaterialDocument": null,
+      "ReverseDocument": null,
+      "SupplierInvoice": "SI562159679438859",
+      "SupplierInvoiceIDByInvcgParty": "INV-562159679438859",
+      "SupplierInvoiceItem": "000001",
+      "SupplierInvoiceItemAmount": "4297.00"
+    }
+  ],
+  "purchase_order": {
+    "CompanyCode": "companyID_0000",
+    "CreatedByUser": {
+      "is_batch_user": false,
+      "user_id": "user_092"
+    },
+    "DocumentCurrency": "EUR",
+    "PurchaseOrder": "4507039086",
+    "PurchaseOrderDate": "2018-06-26T09:05:00+00:00",
+    "PurchaseOrderType": "Standard PO",
+    "PurchasingGroup": null,
+    "PurchasingOrganization": null,
+    "Supplier": "vendorID_0810"
+  },
+  "purchase_order_item": {
+    "AccountAssignmentCategory": null,
+    "DocumentCurrency": "EUR",
+    "GoodsReceiptIsExpected": true,
+    "InvoiceIsGoodsReceiptBased": false,
+    "IsCompletelyDelivered": null,
+    "IsFinallyInvoiced": null,
+    "Material": null,
+    "MaterialGroup": null,
+    "NetPriceAmount": "8594.0",
+    "OrderQuantity": null,
+    "Plant": null,
+    "PurchaseOrder": "4507039086",
+    "PurchaseOrderItem": "00020",
+    "PurchaseOrderItemCategory": "3-way match, invoice before GR",
+    "PurchaseOrderQuantityUnit": null
+  },
+  "source_case_id": "4507039086_00020"
+}

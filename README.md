@@ -12,7 +12,15 @@ Full project description: [docs/PROJECT.md](docs/PROJECT.md).
 
 ## Status
 
-Session 1 (BPIC 2019 derivation) is in progress. No agent code exists yet.
+Session 1 (BPIC 2019 derivation) is code-complete and awaiting the human
+hand-check gate. ~300 line items are rendered to `fixtures/rendered/`; the
+case selection is not yet frozen (`fixtures/frozen/` is empty) -- see
+[docs/handcheck/](docs/handcheck/) for the three reports that need review
+before `python -m docket.freeze` can run. No agent code exists yet.
+
+Full derivation record -- reconnaissance findings, exclusions, the schema,
+and every modelling assumption -- is in
+[docs/DERIVATION.md](docs/DERIVATION.md).
 
 ## Provenance
 
@@ -32,4 +40,5 @@ python -m venv .venv
 ruff check .
 mypy
 pytest -m "not slow"
+pytest -m slow   # full-log checks, ~500MB CSV, ~40s
 ```
