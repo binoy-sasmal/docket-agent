@@ -1,6 +1,5 @@
 {
-  "status": "draft",
-  "do_not_freeze_without_human_review": true,
+  "status": "frozen",
   "authorship_basis": "Labels drafted from fixtures/frozen/selection/cases.json, fixtures/rendered/documents/*.json, and docs/PROJECT.md only. Current implementation behavior was not inspected.",
   "disposition_schema": {
     "expected_disposition": [

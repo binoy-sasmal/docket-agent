@@ -144,14 +144,24 @@ def validate_evidence(
         )
 
     rendered_gr_keys = gr_keys(document)
-    for key in evidence.get("goods_receipts", []):
-        if key not in rendered_gr_keys:
-            errors.append(f"{case_id}: goods receipt evidence key not rendered: {key}")
+    evidence_gr_keys = set(evidence.get("goods_receipts", []))
+    if evidence_gr_keys != rendered_gr_keys:
+        missing = sorted(rendered_gr_keys - evidence_gr_keys)
+        extra = sorted(evidence_gr_keys - rendered_gr_keys)
+        errors.append(
+            f"{case_id}: goods receipt evidence keys must exactly match rendered keys; "
+            f"missing {missing}, extra {extra}"
+        )
 
     rendered_invoice_keys = invoice_keys(document)
-    for key in evidence.get("supplier_invoice_items", []):
-        if key not in rendered_invoice_keys:
-            errors.append(f"{case_id}: supplier invoice evidence key not rendered: {key}")
+    evidence_invoice_keys = set(evidence.get("supplier_invoice_items", []))
+    if evidence_invoice_keys != rendered_invoice_keys:
+        missing = sorted(rendered_invoice_keys - evidence_invoice_keys)
+        extra = sorted(evidence_invoice_keys - rendered_invoice_keys)
+        errors.append(
+            f"{case_id}: supplier invoice evidence keys must exactly match rendered keys; "
+            f"missing {missing}, extra {extra}"
+        )
 
 
 def validate_gr_based_references(
@@ -159,6 +169,21 @@ def validate_gr_based_references(
     document: dict[str, Any],
     errors: list[str],
 ) -> None:
+    receipt_doc_counts = Counter(
+        receipt["MaterialDocument"] for receipt in document["goods_receipts"]
+    )
+    duplicate_receipt_docs = sorted(
+        material_document
+        for material_document, count in receipt_doc_counts.items()
+        if count > 1
+    )
+    if duplicate_receipt_docs:
+        errors.append(
+            f"{case_id}: GR-based post has multiple receipt items for material documents "
+            f"{duplicate_receipt_docs}; reference validation is ambiguous"
+        )
+        return
+
     receipt_amount_by_doc = {
         receipt["MaterialDocument"]: amount(receipt["Amount"])
         for receipt in document["goods_receipts"]
