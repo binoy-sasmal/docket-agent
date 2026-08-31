@@ -1,0 +1,1 @@
+"""Minimal investigation graph skeleton."""
