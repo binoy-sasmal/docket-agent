@@ -5,6 +5,9 @@ description = "An ERP invoice exception agent that investigates, cites its evide
 requires-python = ">=3.12,<3.13"
 readme = "README.md"
 dependencies = [
+    "langgraph>=1.0",
+    "langchain-groq>=0.2",
+    "python-dotenv>=1.0",
     "pandas>=2.2",
     "pyarrow>=17.0",
     "pydantic>=2.8",
@@ -40,5 +43,6 @@ files = ["src", "tools"]
 [tool.pytest.ini_options]
 markers = [
     "slow: full-log runs, not part of the fast default suite",
+    "llm: hits the live Groq API; requires GROQ_API_KEY and network access",
 ]
 testpaths = ["tests"]

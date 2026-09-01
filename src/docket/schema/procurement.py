@@ -112,6 +112,12 @@ class APurchaseOrderItem(_Frozen):
     AGENTS.md warns against.
     """
     AccountAssignmentCategory: str | None = None
+    Note: str | None = None
+    """Free text (A_PurchaseOrderItemNote in the real entity). Never present
+    in fixtures/frozen/ or fixtures/rendered/ -- BPIC 2019 carries no invoice
+    free text (docs/PROJECT.md 4.2). Populated only in memory, at eval time,
+    by docket.tools.injection overlays. Always untrusted input.
+    """
 
 
 class AMaterialDocumentEntry(_Frozen):
@@ -140,6 +146,11 @@ class AMaterialDocumentEntry(_Frozen):
     """log-derived if this is the only GR on the case (equal to the PO
     item's NetPriceAmount); authored if the case has more than one GR (a
     split of that total -- docs/DERIVATION.md 1.10).
+    """
+    Note: str | None = None
+    """Free text on the material document. Same rule as
+    APurchaseOrderItem.Note: never in frozen/rendered fixtures, overlay-only,
+    always untrusted input.
     """
 
 
@@ -180,6 +191,11 @@ class ASupplierInvoiceEntry(_Frozen):
     InvoiceIsGoodsReceiptBased is true and the case has multiple GRs/
     invoices -- docs/DERIVATION.md section 3.2. None for the default
     (unmatched) case.
+    """
+    Note: str | None = None
+    """Free text on the supplier invoice item. Same rule as
+    APurchaseOrderItem.Note: never in frozen/rendered fixtures, overlay-only,
+    always untrusted input.
     """
 
 

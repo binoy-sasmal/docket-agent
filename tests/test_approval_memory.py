@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from langgraph.types import Command
 
 from docket.approval import (
     ApprovalRecord,
@@ -11,6 +12,7 @@ from docket.approval import (
     record_approved_resolution,
     require_human_approval,
 )
+from docket.graph.langgraph_app import build_docket_graph
 from docket.graph.skeleton import CaseKey, run_case
 from docket.memory import SupplierMemoryStore
 
@@ -82,3 +84,38 @@ def test_same_actor_cannot_approve_resolution_memory_write() -> None:
         )
 
     assert memory.list_supplier(proposal.supplier) == ()
+
+
+def test_langgraph_interrupts_before_approved_memory_write() -> None:
+    app = build_docket_graph()
+    config = {"configurable": {"thread_id": "approval-test"}}
+
+    result = app.graph.invoke({"case": CaseKey("4507000477", "00060")}, config=config)
+
+    assert app.memory_store.list_supplier("vendorID_0103") == ()
+    interrupt_payload = result["__interrupt__"][0].value
+    assert interrupt_payload["case_key"] == "4507000477/00060"
+    assert interrupt_payload["disposition"] == "propose_post"
+
+
+def test_langgraph_resume_after_approval_writes_supplier_memory() -> None:
+    app = build_docket_graph()
+    config = {"configurable": {"thread_id": "approval-resume-test"}}
+    app.graph.invoke({"case": CaseKey("4507000477", "00060")}, config=config)
+
+    result = app.graph.invoke(
+        Command(
+            resume={
+                "approved": True,
+                "approved_by": "user_approver",
+                "proposed_by": "agent",
+                "reason": "reviewed supporting evidence",
+            }
+        ),
+        config=config,
+    )
+
+    record = result["approval_record"]
+    assert record.supplier == "vendorID_0103"
+    assert record.case_purchase_order == "4507000477"
+    assert app.memory_store.list_supplier("vendorID_0103") == (record,)

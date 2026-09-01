@@ -13,6 +13,7 @@ from docket.schema.procurement import (
     ASupplierInvoiceEntry,
     RenderedLineItem,
 )
+from docket.tools.injection import InjectionOverlay, apply_overlays
 
 
 @dataclass(frozen=True)
@@ -44,10 +45,20 @@ class ReadOnlyODataTools:
         }
     )
 
-    def __init__(self, store: FrozenFixtureStore | None = None) -> None:
+    def __init__(
+        self,
+        store: FrozenFixtureStore | None = None,
+        overlays: tuple[InjectionOverlay, ...] = (),
+    ) -> None:
+        """`overlays` are applied to in-memory copies of the loaded
+        documents only -- fixtures/frozen/ and fixtures/rendered/ are never
+        touched. Empty by default, so every existing caller sees the
+        fixtures exactly as rendered.
+        """
         self._store = store or FrozenFixtureStore()
         self._documents = tuple(
-            self._store.load_case(case_id) for case_id in self._store.selected_case_ids
+            apply_overlays(self._store.load_case(case_id), overlays)
+            for case_id in self._store.selected_case_ids
         )
         self._tool_calls: list[ToolCall] = []
 

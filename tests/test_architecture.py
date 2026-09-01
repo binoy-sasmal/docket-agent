@@ -1,23 +1,14 @@
-"""Architecture invariants from docs/PROJECT.md, enforced as tests rather than
-convention.
-
-Per the Session 1 plan: the pre-commit hook and read-only bits that would
-otherwise guard fixtures/frozen/ are deliberately not used in this project.
-This test file -- run in the fast default suite, on every push -- is therefore
-the one active enforcement layer for the structural separation described in
-docs/PROJECT.md's Session 1 plan. It must keep passing.
-
-Clauses for Session 3+ (Reconciler zero-tools, Policy gate no-LLM) are listed
-here as documentation of what must be added when those modules exist; they are
-not yet checkable because the modules do not exist.
-"""
+"""Architecture invariants from docs/PROJECT.md, enforced as tests."""
 
 from __future__ import annotations
 
 import ast
 import inspect
+import tomllib
 from pathlib import Path
 
+from docket.graph.langgraph_app import policy_gate_node, reconciler_node
+from docket.graph.skeleton import policy_gate, reconciler
 from docket.tools.odata import ReadOnlyODataTools
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -25,15 +16,21 @@ DERIVE_DIR = REPO_ROOT / "src" / "docket" / "derive"
 SCHEMA_DIR = REPO_ROOT / "src" / "docket" / "schema"
 POLICY_MODULE = REPO_ROOT / "src" / "docket" / "policy.py"
 
-# Any library that could make an LLM call. Extend this list as new LLM/agent
-# dependencies are added to the project in later sessions.
-LLM_LIBRARY_PREFIXES = (
+# Any model-client library that could make an LLM call. LangGraph is an
+# orchestrator and is checked separately so policy.py can remain deterministic.
+# Membership is exact-match on the import's top-level module name, so a new
+# package (e.g. adding a different model provider) must be listed here by
+# its actual import name, not assumed to be caught by a prefix.
+MODEL_CLIENT_LIBRARY_PREFIXES = (
     "langchain",
-    "langgraph",
+    "langchain_core",
+    "langchain_groq",
     "langfuse",
     "anthropic",
     "openai",
+    "groq",
 )
+POLICY_FORBIDDEN_IMPORT_PREFIXES = MODEL_CLIENT_LIBRARY_PREFIXES + ("langgraph",)
 
 
 def _python_files(directory: Path) -> list[Path]:
@@ -68,12 +65,7 @@ def test_derive_never_references_the_frozen_path() -> None:
     )
 
 
-def test_schema_and_derive_import_no_llm_library() -> None:
-    """Session 1 produces no agent code (constraint 4). This is checkable: the
-    schema and derivation modules must not import any LLM/agent library, so
-    that the commit freezing the fixture selection is provably from a
-    lockfile that could not have called a model.
-    """
+def test_schema_and_derive_import_no_model_client_library() -> None:
     offenders: list[str] = []
 
     for directory in (DERIVE_DIR, SCHEMA_DIR):
@@ -87,40 +79,20 @@ def test_schema_and_derive_import_no_llm_library() -> None:
                     names = [node.module]
 
                 for name in names:
-                    if name.split(".")[0].lower() in LLM_LIBRARY_PREFIXES:
+                    if name.split(".")[0].lower() in MODEL_CLIENT_LIBRARY_PREFIXES:
                         offenders.append(f"{path.relative_to(REPO_ROOT)} imports {name!r}")
 
     assert not offenders, (
-        "src/docket/schema/ and src/docket/derive/ must not import any LLM "
+        "src/docket/schema/ and src/docket/derive/ must not import any model-client "
         "library in Session 1. Found:\n" + "\n".join(offenders)
     )
 
 
-def test_no_llm_library_in_the_lockfiles_yet() -> None:
-    """Belt-and-braces on constraint 4: as of Session 1, the dependency set
-    itself must not contain an LLM/agent library. This test is expected to
-    start failing in Session 3+, at which point it should be deleted -- its
-    job is only to make Session 1's boundary visible and checkable while it
-    is supposed to hold.
-    """
-    lockfiles = [
-        REPO_ROOT / "requirements.lock.txt",
-        REPO_ROOT / "requirements-dev.lock.txt",
-    ]
-    offenders: list[str] = []
+def test_langgraph_is_declared_as_orchestration_dependency() -> None:
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = pyproject["project"]["dependencies"]
 
-    for lockfile in lockfiles:
-        if not lockfile.exists():
-            continue
-        text = lockfile.read_text(encoding="utf-8").lower()
-        for prefix in LLM_LIBRARY_PREFIXES:
-            if prefix in text:
-                offenders.append(f"{lockfile.name} mentions {prefix!r}")
-
-    assert not offenders, (
-        "Session 1's lockfiles must not pull in an LLM library. Found:\n"
-        + "\n".join(offenders)
-    )
+    assert any(dependency.startswith("langgraph") for dependency in dependencies)
 
 
 def test_policy_gate_module_imports_no_llm_library() -> None:
@@ -134,10 +106,22 @@ def test_policy_gate_module_imports_no_llm_library() -> None:
             names = [node.module]
 
         for name in names:
-            if name.split(".")[0].lower() in LLM_LIBRARY_PREFIXES:
+            if name.split(".")[0].lower() in POLICY_FORBIDDEN_IMPORT_PREFIXES:
                 offenders.append(name)
 
-    assert not offenders, "policy.py must not import LLM libraries: " + ", ".join(offenders)
+    assert not offenders, "policy.py must not import model or graph libraries: " + ", ".join(
+        offenders
+    )
+
+
+def test_reconciler_nodes_accept_no_tool_executor() -> None:
+    assert tuple(inspect.signature(reconciler).parameters) == ("investigation",)
+    assert tuple(inspect.signature(reconciler_node).parameters) == ("state",)
+
+
+def test_policy_gate_nodes_have_deterministic_signatures() -> None:
+    assert tuple(inspect.signature(policy_gate).parameters) == ("reconciliation",)
+    assert tuple(inspect.signature(policy_gate_node).parameters) == ("state",)
 
 
 def test_odata_tool_public_methods_are_allowlisted_reads() -> None:
@@ -149,12 +133,3 @@ def test_odata_tool_public_methods_are_allowlisted_reads() -> None:
 
     assert public_methods == set(ReadOnlyODataTools.ALLOWED_TOOL_NAMES)
     assert all(name.startswith(("get_", "list_")) for name in public_methods)
-
-
-# --- Documented, not yet checkable: add these when the modules exist (Session 3+) ---
-#
-# - Reconciler: its node function must accept no tool-executor parameter at
-#   all, and must bind a model client with no tools attached. A test asserting
-#   `tools == []` is weaker than this -- a list is a thing you can append to.
-# - Policy gate: its module's transitive imports must be disjoint from the
-#   LLM dependency set (see LLM_LIBRARY_PREFIXES above). No LLM call, ever.

@@ -35,17 +35,17 @@ class ApprovalRecord:
     reason: str
 
 
-def require_human_approval(proposal: Proposal) -> None:
-    """Stop before side effects. Later this becomes LangGraph `interrupt()`."""
-    raise HumanApprovalRequired(
-        ApprovalRequest(
-            case_key=(
-                f"{proposal.case.purchase_order}/{proposal.case.purchase_order_item}"
-            ),
-            disposition=proposal.disposition,
-            summary=proposal.summary,
-        )
+def approval_request_for(proposal: Proposal) -> ApprovalRequest:
+    return ApprovalRequest(
+        case_key=(f"{proposal.case.purchase_order}/{proposal.case.purchase_order_item}"),
+        disposition=proposal.disposition,
+        summary=proposal.summary,
     )
+
+
+def require_human_approval(proposal: Proposal) -> None:
+    """Stop before side effects in non-LangGraph callers."""
+    raise HumanApprovalRequired(approval_request_for(proposal))
 
 
 def record_approved_resolution(

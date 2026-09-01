@@ -16,6 +16,9 @@ data/raw/*
 fixtures/derived/*
 !fixtures/derived/.gitkeep
 
+# Secrets
+.env
+
 # Editors / OS
 .vscode/
 .idea/
