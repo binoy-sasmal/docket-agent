@@ -312,9 +312,20 @@ credible; having an interviewer discover one makes everything else doubtful.
 - ~300 derived cases, one exception class
 - Labels authored by a single person
 - Small injection set
-- No approval workflow, no posting, no ERP write path of any kind
+- No posting, no ERP write path of any kind
 - The author is not an ERP functional consultant; the claim is agent
   infrastructure against a realistic ERP process, not domain expertise
+
+> **Amended after the three days.** This list originally read "No approval
+> workflow, no posting, no ERP write path of any kind." The posting and
+> write-path halves still hold and are the load-bearing ones —
+> `Proposal.can_post` is hardcoded `False`, is never model-controlled, and no
+> code path anywhere posts, pays or releases. The approval-workflow half no
+> longer does: a real LangGraph `interrupt()` gates the memory write, and the
+> web UI in `ui/` (see section 7's amendment) is a working approval view that
+> resumes it with a distinct human approver. Corrected rather than left
+> standing, because a limits section that understates what was built is a
+> credibility problem in the same way one that overstates it is.
 
 ---
 
