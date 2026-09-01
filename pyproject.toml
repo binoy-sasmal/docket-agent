@@ -20,6 +20,14 @@ dev = [
     "mypy>=1.11",
     "pandas-stubs",
 ]
+# The web layer in ui/. Kept out of the core dependencies and out of
+# requirements-dev.lock.txt on purpose: CI lints, type-checks, tests and runs
+# the eval gate without ever installing a web server, so the UI cannot become
+# a way for the gates to fail.
+ui = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -38,6 +46,10 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# `ui/` is deliberately not in this list. Adding it would make the CI type
+# gate depend on FastAPI being installed, coupling the system under test's
+# gates to its viewer. Check it explicitly when working on it:
+#     mypy ui/api --ignore-missing-imports
 files = ["src", "tools"]
 
 [tool.pytest.ini_options]

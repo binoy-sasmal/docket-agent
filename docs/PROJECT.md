@@ -290,6 +290,17 @@ agent-generated remediation code. No orchestration beyond the four nodes. **If d
 1 overruns, cut the memory layer before cutting the evals.** Two pillars done
 properly beat four done thinly.
 
+> **Amended after the three days.** The "no polished UI" cut was deliberately
+> reversed once the three pillars above were done and the CI gate was green: a
+> real two-view web UI now lives in `ui/` (see `ui/README.md`). The reasoning
+> behind the original cut still stands and still governs — a UI must not become
+> the project. So it was built as a *viewer*: it lives outside `src/`, adds no
+> capability to the agent, removes none of its constraints, and is excluded
+> from the CI gates so it cannot be the reason they fail. It exists because the
+> two things this project is actually claiming — trajectory transparency and
+> evidence-grounded claims — are claims about *what a human reviewer can see*,
+> and a results table alone does not show that.
+
 ---
 
 ## 8. Known limits

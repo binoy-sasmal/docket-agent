@@ -25,3 +25,10 @@ fixtures/derived/*
 .DS_Store
 Thumbs.db
 
+
+# Web UI (ui/web). The built client is a build artifact; the API serves it
+# from ui/web/dist when present. `dist/` above already matches it, but it is
+# named here too so the reason is recorded next to node_modules.
+node_modules/
+ui/web/dist/
+*.tsbuildinfo
