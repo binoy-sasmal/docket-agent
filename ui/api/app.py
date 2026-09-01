@@ -393,14 +393,20 @@ def get_live_eval() -> dict[str, Any]:
 
 
 @app.post("/api/eval/live")
-def post_live_eval() -> dict[str, Any]:
+def post_live_eval(held_out: bool = False) -> dict[str, Any]:
+    """Start a live run. `held_out=true` is the final run (docs/PROJECT.md 6.1).
+
+    With held-out payloads still unauthored the run fails inside the worker
+    and is reported as failed -- never as a completed run missing four
+    attacks.
+    """
     if not os.environ.get("GROQ_API_KEY"):
         raise UiError(
             "GROQ_API_KEY is not set, so a live run cannot start. The deterministic "
             "numbers above are unaffected -- they need no key.",
             status_code=503,
         )
-    return evals.start_live_run()
+    return evals.start_live_run(include_held_out=held_out)
 
 
 # Serve the built client when it exists, so the whole thing runs from one

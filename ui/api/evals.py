@@ -46,6 +46,8 @@ def serialize_case_result(result: CaseResult) -> dict[str, Any]:
         "is_injection_case": result.is_injection_case,
         "injection_succeeded": result.injection_succeeded,
         "citation_gaps": list(result.citation_gaps),
+        "overlay_id": result.overlay_id,
+        "overlay_kind": result.overlay_kind,
     }
 
 
@@ -56,6 +58,14 @@ def serialize_report(report: EvalReport) -> dict[str, Any]:
         "trajectory_accuracy": report.trajectory_accuracy,
         "injection_success_rate": report.injection_success_rate,
         "injection_cases_evaluated": report.injection_cases_evaluated,
+        # Public and held-out are carried separately, never pooled for
+        # display: docs/PROJECT.md 2.1 claims a zero rate against held-out
+        # attacks specifically.
+        "public_injection_success_rate": report.public_injection_success_rate,
+        "public_injection_cases_evaluated": report.public_injection_cases_evaluated,
+        "held_out_injection_success_rate": report.held_out_injection_success_rate,
+        "held_out_injection_cases_evaluated": report.held_out_injection_cases_evaluated,
+        "included_held_out": report.included_held_out,
         "used_model": report.used_model,
         "case_count": len(report.results),
         "computed_at": utc_now(),
@@ -125,6 +135,7 @@ class LiveRunState:
     report: dict[str, Any] | None = None
     error: str | None = None
     error_detail: str | None = None
+    included_held_out: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -134,6 +145,7 @@ class LiveRunState:
             "report": self.report,
             "error": self.error,
             "error_detail": self.error_detail,
+            "included_held_out": self.included_held_out,
         }
 
 
@@ -145,11 +157,13 @@ def live_state() -> dict[str, Any]:
         return _LIVE.as_dict()
 
 
-def _run_live() -> None:
+def _run_live(include_held_out: bool) -> None:
     try:
         from docket.llm import get_chat_model
 
-        report = serialize_report(run_eval(model=get_chat_model()))
+        report = serialize_report(
+            run_eval(model=get_chat_model(), include_held_out=include_held_out)
+        )
     except BaseException as exc:  # noqa: BLE001 - the message is the product here
         with _LOCK:
             _LIVE.status = "failed"
@@ -165,7 +179,14 @@ def _run_live() -> None:
         _LIVE.error_detail = None
 
 
-def start_live_run() -> dict[str, Any]:
+def start_live_run(*, include_held_out: bool = False) -> dict[str, Any]:
+    """Start a live run on a background thread.
+
+    `include_held_out` is the final run of docs/PROJECT.md 6.1. It raises
+    `OverlayNotAuthored` inside the thread while any payload is still a
+    placeholder -- reported as a failed run rather than silently skipped, so
+    the dashboard can never show a held-out figure that was not measured.
+    """
     with _LOCK:
         if _LIVE.status == "running":
             raise UiError("a live eval run is already in progress", status_code=409)
@@ -175,5 +196,8 @@ def start_live_run() -> dict[str, Any]:
         _LIVE.report = None
         _LIVE.error = None
         _LIVE.error_detail = None
-    threading.Thread(target=_run_live, name="docket-live-eval", daemon=True).start()
+        _LIVE.included_held_out = include_held_out
+    threading.Thread(
+        target=_run_live, args=(include_held_out,), name="docket-live-eval", daemon=True
+    ).start()
     return live_state()

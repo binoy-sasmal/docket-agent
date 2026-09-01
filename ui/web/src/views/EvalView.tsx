@@ -5,12 +5,22 @@ import { DispositionTag } from "../components/CaseParts";
 import { CaseStatusGrid, DispositionDistribution, StatTile } from "../components/EvalParts";
 import { Button, Empty, Key, Panel, StatusTag } from "../components/primitives";
 
+function formatRate(rate: number | null): string {
+  return rate === null ? "N/A" : `${(rate * 100).toFixed(1)}%`;
+}
+
+function rateInk(rate: number | null): string {
+  if (rate === null) return "var(--ink-muted)";
+  return rate === 0 ? "var(--ink-good)" : "var(--ink-critical)";
+}
+
 export function EvalView({ meta }: { meta: Meta }) {
   const [bundle, setBundle] = useState<EvalBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCase, setSelectedCase] = useState<string | null>(null);
   const [live, setLive] = useState<LiveEvalState | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
+  const [wantHeldOut, setWantHeldOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,10 +137,12 @@ export function EvalView({ meta }: { meta: Meta }) {
           meta={meta}
           live={live}
           startError={startError}
+          heldOut={wantHeldOut}
+          onHeldOutChange={setWantHeldOut}
           onStart={async () => {
             setStartError(null);
             try {
-              setLive(await api.startLiveEval());
+              setLive(await api.startLiveEval(wantHeldOut));
             } catch (caught) {
               setStartError(caught instanceof ApiError ? caught.message : String(caught));
             }
@@ -348,13 +360,19 @@ function LivePanel({
   meta,
   live,
   startError,
+  heldOut,
+  onHeldOutChange,
   onStart,
 }: {
   meta: Meta;
   live: LiveEvalState | null;
   startError: string | null;
+  heldOut: boolean;
+  onHeldOutChange: (value: boolean) => void;
   onStart: () => void;
 }) {
+  const allAuthored =
+    meta.golden_set.held_out_authored_count === meta.golden_set.held_out_overlay_count;
   const status = live?.status ?? "idle";
   return (
     <Panel
@@ -413,7 +431,7 @@ function LivePanel({
       ) : null}
 
       {status === "succeeded" && live?.report ? (
-        <dl className="grid grid-cols-3 gap-3">
+        <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
             <dt className="u-label">Disposition</dt>
             <dd className="u-tabular" style={{ fontSize: "20px", color: "var(--ink)" }}>
@@ -427,19 +445,28 @@ function LivePanel({
             </dd>
           </div>
           <div>
-            <dt className="u-label">Injection</dt>
-            <dd
-              className="u-tabular"
-              style={{
-                fontSize: "20px",
-                color:
-                  live.report.injection_success_rate === 0 ? "var(--ink-good)" : "var(--ink-critical)",
-              }}
-            >
-              {live.report.injection_success_rate === null
-                ? "N/A"
-                : `${(live.report.injection_success_rate * 100).toFixed(1)}%`}
+            <dt className="u-label">Injection (public)</dt>
+            <dd className="u-tabular" style={{ fontSize: "20px", color: rateInk(live.report.public_injection_success_rate) }}>
+              {formatRate(live.report.public_injection_success_rate)}
             </dd>
+            <span className="u-label">
+              {live.report.public_injection_cases_evaluated} case(s)
+            </span>
+          </div>
+          <div>
+            {/* Held out is its own figure, never averaged with public: the
+                public payloads were visible while the system was built. */}
+            <dt className="u-label">Injection (held out)</dt>
+            <dd className="u-tabular" style={{ fontSize: "20px", color: live.report.included_held_out ? rateInk(live.report.held_out_injection_success_rate) : "var(--ink-muted)" }}>
+              {live.report.included_held_out
+                ? formatRate(live.report.held_out_injection_success_rate)
+                : "not run"}
+            </dd>
+            <span className="u-label">
+              {live.report.included_held_out
+                ? `${live.report.held_out_injection_cases_evaluated} case(s)`
+                : "final run only"}
+            </span>
           </div>
         </dl>
       ) : null}
@@ -450,9 +477,10 @@ function LivePanel({
         </p>
       ) : null}
 
-      <div className="mt-3">
+      <div className="mt-4 flex flex-wrap items-center gap-4">
         <Button
           tone="info"
+          variant="primary"
           disabled={status === "running" || !meta.live_mode_available}
           onClick={onStart}
           title={
@@ -463,6 +491,31 @@ function LivePanel({
         >
           {status === "running" ? "Running…" : "Start live run"}
         </Button>
+        <label
+          className="flex items-center gap-2"
+          style={{ fontSize: "13px", color: allAuthored ? "var(--ink-2)" : "var(--ink-muted)" }}
+          title={
+            allAuthored
+              ? "The final run of docs/PROJECT.md 6.1."
+              : "The four held-out payloads are still unauthored placeholders, so this run would fail."
+          }
+        >
+          <input
+            type="checkbox"
+            checked={heldOut}
+            disabled={status === "running"}
+            onChange={(event) => onHeldOutChange(event.target.checked)}
+            style={{ width: "16px", height: "16px", accentColor: "var(--series-1)" }}
+          />
+          Include held-out payloads (final run)
+        </label>
+        {!allAuthored && heldOut ? (
+          <span className="u-label" style={{ color: "var(--ink-warning)" }}>
+            {meta.golden_set.held_out_overlay_count - meta.golden_set.held_out_authored_count} of{" "}
+            {meta.golden_set.held_out_overlay_count} payloads are still placeholders — this run
+            will fail rather than silently skip them.
+          </span>
+        ) : null}
       </div>
     </Panel>
   );

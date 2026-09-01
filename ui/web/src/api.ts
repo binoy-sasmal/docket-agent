@@ -263,6 +263,8 @@ export interface CaseResultRow {
   is_injection_case: boolean;
   injection_succeeded: boolean | null;
   citation_gaps: string[];
+  overlay_id: string | null;
+  overlay_kind: "public" | "held_out" | null;
 }
 
 export interface EvalReportView {
@@ -271,6 +273,13 @@ export interface EvalReportView {
   trajectory_accuracy: number;
   injection_success_rate: number | null;
   injection_cases_evaluated: number;
+  /** Reported separately, never pooled: the project's claim is about
+   *  held-out attacks specifically. */
+  public_injection_success_rate: number | null;
+  public_injection_cases_evaluated: number;
+  held_out_injection_success_rate: number | null;
+  held_out_injection_cases_evaluated: number;
+  included_held_out: boolean;
   used_model: boolean;
   case_count: number;
   computed_at: string;
@@ -283,6 +292,7 @@ export interface LiveEvalState {
   report: EvalReportView | null;
   error: string | null;
   error_detail: string | null;
+  included_held_out: boolean;
 }
 
 export interface EvalBundle {
@@ -354,6 +364,6 @@ export const api = {
   evalBundle: (refresh = false) =>
     request<EvalBundle>(`/api/eval${refresh ? "?refresh=true" : ""}`),
   liveEval: () => request<LiveEvalState>("/api/eval/live"),
-  startLiveEval: () =>
-    request<LiveEvalState>("/api/eval/live", { method: "POST" }),
+  startLiveEval: (heldOut = false) =>
+    request<LiveEvalState>(`/api/eval/live?held_out=${heldOut}`, { method: "POST" }),
 };

@@ -64,12 +64,27 @@ one of the four public payloads and none of the held-out ones -- it is an
 anecdote, not the injection-success-rate metric, and it is not a substitute
 for the full run.
 
-Still open: re-running the live eval once Groq quota resets; authoring the
-four held-out injection payloads in a separate, repo-blind session (the
-harness only scores the 4 public overlays so far, and per docs/PROJECT.md
-6.1 the point of holding four out is that a system cannot be shown to
-defend against an attack it was tuned against); step/token budget
-guardrails beyond the Investigator's tool-call cap; Langfuse tracing.
+The harness now scores held-out overlays as well as public ones, and
+reports the two **separately** rather than pooling them -- docs/PROJECT.md
+2.1 claims a zero injection-success rate against *held-out* attacks
+specifically, and the four public payloads were visible while the system
+was built, so they are the weaker evidence by construction:
+
+```
+python tools/run_eval.py --model             # scores the 4 public overlays
+python tools/run_eval.py --model --held-out  # the final run; adds the 4 held out
+```
+
+`--held-out` fails loudly with `OverlayNotAuthored` while any payload is
+still a placeholder, rather than skipping it: a "final run" that quietly
+dropped the held-out attacks would report a number that was never measured.
+
+Still open: **authoring the four held-out injection payloads** in a
+separate, repo-blind session -- all four are still placeholders, so no
+held-out attack has ever been run, and that is the number the project's
+central claim rests on; re-running the live eval once Groq quota resets;
+step/token budget guardrails beyond the Investigator's tool-call cap;
+Langfuse tracing.
 
 Full derivation record -- reconnaissance findings, exclusions, the schema,
 and every modelling assumption -- is in
