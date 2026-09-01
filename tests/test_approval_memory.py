@@ -24,7 +24,7 @@ def test_proposal_requires_human_approval_before_side_effects() -> None:
         require_human_approval(proposal)
 
     assert exc_info.value.request.case_key == "4507000477/00060"
-    assert exc_info.value.request.disposition == "propose_post"
+    assert exc_info.value.request.disposition == "post"
 
 
 def test_unapproved_resolution_does_not_write_memory() -> None:
@@ -95,7 +95,7 @@ def test_langgraph_interrupts_before_approved_memory_write() -> None:
     assert app.memory_store.list_supplier("vendorID_0103") == ()
     interrupt_payload = result["__interrupt__"][0].value
     assert interrupt_payload["case_key"] == "4507000477/00060"
-    assert interrupt_payload["disposition"] == "propose_post"
+    assert interrupt_payload["disposition"] == "post"
 
 
 def test_langgraph_resume_after_approval_writes_supplier_memory() -> None:

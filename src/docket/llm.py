@@ -27,11 +27,18 @@ this default 404s.
 """
 
 
-def get_chat_model(*, temperature: float = 0.0) -> ChatGroq:
+def get_chat_model(*, temperature: float = 0.0, max_retries: int = 6) -> ChatGroq:
     """Build the Groq chat client from GROQ_API_KEY / GROQ_MODEL.
 
     Reads from process environment, populated by `load_dotenv()` above from
     a `.env` file at the repo root (gitignored; see `.env.example`).
+
+    `max_retries` defaults higher than ChatGroq's own default of 2: the free
+    tier's per-model tokens-per-minute cap (8000 TPM as of 2026-09) is easy
+    to hit running a multi-case eval, since each case now makes several
+    calls (Investigator tool-calling loop, Reconciler narrative, Proposer
+    justification). The underlying Groq SDK backs off and retries 429s on
+    its own; this just gives it more attempts before giving up.
     """
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -40,4 +47,9 @@ def get_chat_model(*, temperature: float = 0.0) -> ChatGroq:
             "with GROQ_API_KEY=... (see .env.example)."
         )
     model_name = os.environ.get("GROQ_MODEL", DEFAULT_MODEL)
-    return ChatGroq(model=model_name, api_key=SecretStr(api_key), temperature=temperature)
+    return ChatGroq(
+        model=model_name,
+        api_key=SecretStr(api_key),
+        temperature=temperature,
+        max_retries=max_retries,
+    )

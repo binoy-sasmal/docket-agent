@@ -70,6 +70,7 @@ class Reconciliation:
     invoice_amount: Decimal
     goods_receipt_variance: Decimal | None
     invoice_variance: Decimal
+    purchase_order_item_category: str
     narrative: str | None = None
     """Model-authored summary of `claims`, grounded in already-computed
     structured data only -- never in raw document free text. Populated only
@@ -122,13 +123,31 @@ def investigator(case: CaseKey, tools: ReadOnlyODataTools) -> Investigation:
 
 
 def reconciler(investigation: Investigation) -> Reconciliation:
-    """Compare gathered documents. This node intentionally accepts no tools."""
+    """Compare gathered documents. This node intentionally accepts no tools.
+
+    Every rendered goods-receipt and invoice entry is summed at face value,
+    including ones carrying ReversesMaterialDocument/ReverseDocument. This
+    is a deliberate trade-off, not an oversight: deciding that a reversal
+    genuinely nets a document it points to (rather than signalling a
+    duplicate, an over-delivery, or a receipt error) is exactly the
+    ambiguous call this deterministic node must not make silently.
+
+    The trade-off is real: fixtures/rendered/documents/4508074492_00001.json
+    is a clean two-GR-raised-then-both-fully-reversed pair (net physical
+    receipt zero) that this policy still flags for escalation on a face-
+    value total, when a netting reader would call it fully resolved. That
+    case is not in the golden 30, so there is no frozen ground truth for it
+    either way -- but the one golden case that *does* involve a GR reversal
+    (4508074531_00001, reason_code over_receipted_no_invoice) requires
+    exactly this face-value behavior: netting its single reversal against
+    the goods receipt it points to reproduces the PO amount exactly and
+    turns the correct "escalate" into an incorrect "no anomaly", which is
+    the more dangerous failure mode of the two.
+    """
     item = investigation.purchase_order_item
     purchase_order_amount = item.NetPriceAmount
-    original_grs = tuple(
-        gr for gr in investigation.goods_receipts if gr.GoodsMovementType == "101"
-    )
-    original_invoices = tuple(iv for iv in investigation.invoices if iv.ReverseDocument is None)
+    original_grs = investigation.goods_receipts
+    original_invoices = investigation.invoices
 
     goods_receipt_amount = (
         sum((gr.Amount for gr in original_grs), Decimal("0"))
@@ -156,7 +175,10 @@ def reconciler(investigation: Investigation) -> Reconciliation:
         Claim(
             text=f"Invoice amount totals {invoice_amount} {item.DocumentCurrency}.",
             evidence=tuple(
-                EvidenceHandle(kind="supplier_invoice", key=invoice.SupplierInvoice)
+                EvidenceHandle(
+                    kind="supplier_invoice",
+                    key=f"{invoice.SupplierInvoice}/{invoice.SupplierInvoiceItem}",
+                )
                 for invoice in original_invoices
             ),
         ),
@@ -166,7 +188,10 @@ def reconciler(investigation: Investigation) -> Reconciliation:
             Claim(
                 text=f"Goods receipt amount totals {goods_receipt_amount} {item.DocumentCurrency}.",
                 evidence=tuple(
-                    EvidenceHandle(kind="material_document", key=gr.MaterialDocument)
+                    EvidenceHandle(
+                        kind="material_document",
+                        key=f"{gr.MaterialDocument}/{gr.MaterialDocumentItem}",
+                    )
                     for gr in original_grs
                 ),
             )
@@ -196,6 +221,7 @@ def reconciler(investigation: Investigation) -> Reconciliation:
         invoice_amount=invoice_amount,
         goods_receipt_variance=goods_receipt_variance,
         invoice_variance=invoice_variance,
+        purchase_order_item_category=item.PurchaseOrderItemCategory,
     )
 
 
@@ -209,6 +235,7 @@ def policy_gate(reconciliation: Reconciliation) -> PolicyDecision:
             invoice_count=reconciliation.invoice_count,
             goods_receipt_variance=reconciliation.goods_receipt_variance,
             invoice_variance=reconciliation.invoice_variance,
+            is_consignment=reconciliation.purchase_order_item_category == "Consignment",
         )
     )
 
@@ -218,8 +245,8 @@ def proposer(reconciliation: Reconciliation, policy: PolicyDecision) -> Proposal
     disposition = policy.allowed_dispositions[0]
     summary = (
         "Documents reconcile within policy; propose posting for human approval."
-        if disposition == "propose_post"
-        else "Documents do not reconcile exactly; keep the item in review."
+        if disposition == "post"
+        else f"Disposition: {disposition.replace('_', ' ')} (reason: {policy.reason})."
     )
     return Proposal(
         case=reconciliation.case,
@@ -386,11 +413,20 @@ def investigator_agent(
     )
 
 
+def _format_claim(claim: Claim) -> str:
+    evidence = "; ".join(f"{handle.kind} {handle.key}" for handle in claim.evidence)
+    return f"- {claim.text} [evidence: {evidence or 'none'}]"
+
+
+def _format_claims(claims: tuple[Claim, ...]) -> str:
+    return "\n".join(_format_claim(claim) for claim in claims)
+
+
 _RECONCILER_SYSTEM_PROMPT = """You write a short reconciliation summary for a \
-human reviewer, using only the claims listed below -- each already carries a \
-document evidence key. State only what the claims say; introduce no fact, \
-document, amount, or note text that is not already in them. Two or three \
-sentences."""
+human reviewer, using only the claims listed below -- each ends with its \
+evidence key(s) in brackets. State only what the claims say; introduce no \
+fact, document, amount, or note text that is not already in them. Two or \
+three sentences."""
 
 
 def reconciler_narrative(reconciliation: Reconciliation, model: BaseChatModel) -> str:
@@ -399,22 +435,25 @@ def reconciler_narrative(reconciliation: Reconciliation, model: BaseChatModel) -
     Reconciliation's own claims and computed fields -- so this call carries
     none of the untrusted-input exposure the Investigator has.
     """
-    claims_text = "\n".join(f"- {claim.text}" for claim in reconciliation.claims)
     response = model.invoke(
         [
             SystemMessage(_RECONCILER_SYSTEM_PROMPT),
-            HumanMessage(claims_text),
+            HumanMessage(_format_claims(reconciliation.claims)),
         ]
     )
     return str(response.content)
 
 
 _PROPOSER_SYSTEM_PROMPT = """You write the justification a human approver \
-will read before deciding whether to approve this proposal. Use only the \
-claims and the policy reason given below. State the disposition and why, \
-grounded in the claims' evidence keys. Do not invent evidence, do not claim \
-anything was approved already, and do not suggest the proposal can post \
-itself -- it cannot; a human must approve it. Two or three sentences."""
+will read before deciding whether to approve this proposal -- it is the only \
+evidence summary the approver sees, so it must be self-contained. Use only \
+the claims and the policy reason given below; each claim line ends with its \
+evidence key(s) in brackets. State the disposition and why, and literally \
+include every evidence key shown below, exactly as given, somewhere in your \
+response -- do not paraphrase or drop any of them. Do not invent evidence, \
+do not claim anything was approved already, and do not suggest the proposal \
+can post itself -- it cannot; a human must approve it. Two or three \
+sentences plus the evidence keys."""
 
 
 def proposer_justification(
@@ -427,12 +466,19 @@ def proposer_justification(
     disposition itself is chosen deterministically from
     `policy.allowed_dispositions` before this is called and is not
     something this function or its output can change.
+
+    approval_request_for() (docket.approval) puts this summary -- not
+    `claims` -- in front of the human approver, so it is the one place this
+    module's evidence-key grounding actually has to reach a human, not just
+    a downstream data structure.
     """
-    claims_text = "\n".join(f"- {claim.text}" for claim in reconciliation.claims)
     response = model.invoke(
         [
             SystemMessage(_PROPOSER_SYSTEM_PROMPT),
-            HumanMessage(f"Policy reason: {policy.reason}\n\nClaims:\n{claims_text}"),
+            HumanMessage(
+                f"Policy reason: {policy.reason}\n\n"
+                f"Claims:\n{_format_claims(reconciliation.claims)}"
+            ),
         ]
     )
     return str(response.content)

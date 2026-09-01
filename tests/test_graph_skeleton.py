@@ -11,8 +11,8 @@ def test_happy_path_runs_one_case_end_to_end_without_posting() -> None:
     result = run_case(CaseKey("4507000477", "00060"))
 
     assert result.policy.within_tolerance is True
-    assert result.policy.reason == "exact_match"
-    assert result.proposal.disposition == "propose_post"
+    assert result.policy.reason == "matched_3way"
+    assert result.proposal.disposition == "post"
     assert result.proposal.can_post is False
     assert result.proposal.supplier == "vendorID_0103"
     assert [call.name for call in result.investigation.tool_calls] == [
@@ -31,7 +31,7 @@ def test_two_way_match_does_not_fetch_goods_receipts() -> None:
         call.name for call in result.investigation.tool_calls
     ]
     assert result.policy.within_tolerance is True
-    assert result.policy.reason == "exact_match"
+    assert result.policy.reason == "matched_2way"
 
 
 def test_reconciler_node_has_no_tool_parameter() -> None:

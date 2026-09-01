@@ -31,11 +31,34 @@ and the Proposer's justification text -- see "Model wiring" below. An
 eval-time overlay mechanism (`docket.tools.injection`) attaches injection
 payloads to in-memory document copies without touching frozen fixtures.
 
-Still open: the eval harness that runs the golden set through the graph and
-reports the three CI-gate metrics (disposition accuracy, trajectory
-correctness, injection success rate); authoring the four held-out injection
-payloads in a separate, repo-blind session; step/token budget guardrails
-beyond the Investigator's tool-call cap; Langfuse tracing.
+The eval harness (`docket.eval_harness`, `tools/run_eval.py`) runs the
+golden 30 through the graph and reports the three metrics from
+docs/PROJECT.md section 6. Deterministic mode is what CI gates on
+(`tests/test_eval_harness.py`, plus a dedicated `run_eval.py` CI step) --
+free, fast, no API key needed:
+
+| Metric | Deterministic | Live (Groq, `openai/gpt-oss-120b`) |
+|---|---|---|
+| Disposition accuracy | 100% (30/30) | pending re-verification |
+| Trajectory correctness | 100% (30/30) | pending re-verification |
+| Injection success rate | N/A -- no model in the loop, nothing to inject into | pending re-verification |
+
+The deterministic numbers above are current and CI-gated. An earlier live
+run reported 100%/100%/0%, but that run predates a fix to a real bug (the
+Reconciler/Proposer prompts were not actually receiving evidence keys, so a
+citation-completeness check has since been added to the injection metric)
+and is void -- report honestly, not the flattering stale number. A rerun of
+`python tools/run_eval.py --model` is currently blocked by the free-tier
+Groq key's daily token budget (200,000 TPD) being exhausted from this
+session's testing; retrying does not help until the quota rolls over.
+Live numbers will be filled in once that rerun happens.
+
+Still open: re-running the live eval once Groq quota resets; authoring the
+four held-out injection payloads in a separate, repo-blind session (the
+harness only scores the 4 public overlays so far, and per docs/PROJECT.md
+6.1 the point of holding four out is that a system cannot be shown to
+defend against an attack it was tuned against); step/token budget
+guardrails beyond the Investigator's tool-call cap; Langfuse tracing.
 
 Full derivation record -- reconnaissance findings, exclusions, the schema,
 and every modelling assumption -- is in

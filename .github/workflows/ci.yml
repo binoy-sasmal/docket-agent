@@ -30,3 +30,6 @@ jobs:
 
       - name: Test (fast suite; frozen-integrity and architecture tests run here)
         run: pytest -m "not slow"
+
+      - name: Eval harness (Day 3 golden set; deterministic mode)
+        run: python tools/run_eval.py
