@@ -166,14 +166,19 @@ they are the boundary of what this project demonstrates.
 
 **Deliberate non-goals**
 
-- **Token budgets are not implemented.** docs/PROJECT.md 3.3 lists "step and
-  token budgets per case"; only the step budget exists, as the
-  Investigator's four-call cap. Cut rather than built: it is infrastructure
-  garnish next to the injection result, and pretending otherwise would be
-  the overclaim this section exists to prevent.
 - **Langfuse tracing is not implemented.** docs/PROJECT.md 6 names it. It
   appears in this codebase in exactly one place -- the banned-imports list
-  in `tests/test_architecture.py`. Same reasoning.
+  in `tests/test_architecture.py`. Cut rather than built: it is
+  infrastructure garnish next to the injection result, and pretending
+  otherwise would be the overclaim this section exists to prevent.
+
+*(Token budgets were listed here as a non-goal until 2026-09-03, when they
+stopped being optional: `docket.llm.MAX_COMPLETION_TOKENS` now caps the
+per-call completion, because without it the largest golden case exceeds the
+free tier's per-request ceiling and the eval cannot run at all. Both halves
+of docs/PROJECT.md 3.3's "step and token budgets per case" therefore exist --
+the step budget as the Investigator's four-call cap, the token budget as
+that constant.)*
 
 **Authorship**
 
