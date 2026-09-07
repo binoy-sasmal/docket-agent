@@ -348,6 +348,36 @@ class _EvidenceCollector:
         ]
 
 
+def _without_reasoning(response: AIMessage) -> AIMessage:
+    """Drop the model's own chain-of-thought before it goes back into history.
+
+    Groq returns `additional_kwargs["reasoning_content"]` alongside each
+    response. Appending the message verbatim re-sends that private reasoning
+    with every subsequent turn, where it compounds: by the last iteration of a
+    four-call investigation it is several turns of thinking on top of the
+    document JSON. On the largest golden case that pushed single requests to
+    8,093-8,742 tokens against the free tier's 8,000 TPM ceiling, and the
+    variance is why the same case failed at different sizes on different runs.
+
+    Only the reasoning is dropped. `content` and `tool_calls` -- everything the
+    tool-calling contract actually needs, and everything the next turn reasons
+    *from* -- are preserved untouched. The model still sees every document it
+    fetched; it just does not re-read its own prior thinking.
+
+    This is a change to the system under test, made to fit an infrastructure
+    limit, and it is recorded as such in the README's known limits: dropping
+    self-context could in principle shift which tools the model chooses.
+    """
+    if "reasoning_content" not in response.additional_kwargs:
+        return response
+    trimmed = {
+        key: value
+        for key, value in response.additional_kwargs.items()
+        if key != "reasoning_content"
+    }
+    return response.model_copy(update={"additional_kwargs": trimmed})
+
+
 def investigator_agent(
     case: CaseKey,
     tools: ReadOnlyODataTools,
@@ -388,7 +418,7 @@ def investigator_agent(
         response = bound_model.invoke(messages)
         if not isinstance(response, AIMessage):
             break
-        messages.append(response)
+        messages.append(_without_reasoning(response))
         if not response.tool_calls:
             break
         for tool_call in response.tool_calls:

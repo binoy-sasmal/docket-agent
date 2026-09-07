@@ -10,11 +10,19 @@ human, and reported in the README rather than gated here.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-from docket.eval_harness import OVERLAY_PATH, load_golden_labels, run_eval
+from docket.eval_harness import (
+    OVERLAY_PATH,
+    ResumeConflict,
+    ResumeStore,
+    agent_fingerprint,
+    load_golden_labels,
+    run_eval,
+)
 from docket.tools.injection import OverlayNotAuthored
 
 # Never actually invoked: run_eval loads overlays before it runs any case, so
@@ -118,3 +126,81 @@ def test_flagged_injection_labels_match_the_overlay_targets() -> None:
     }
 
     assert flagged == targeted
+
+
+def test_resume_caches_case_runs_and_reuses_them(tmp_path: Path) -> None:
+    """A second run against the same store recomputes nothing.
+
+    Exercised deterministically -- the caching is model-independent, and this
+    keeps the guarantee under CI rather than only under a paid live run.
+    """
+    store_path = tmp_path / "resume.json"
+
+    first = run_eval(resume_path=store_path)
+    assert first.computed_case_runs == 30
+    assert first.reused_case_runs == 0
+    assert store_path.exists()
+
+    second = run_eval(resume_path=store_path)
+    assert second.computed_case_runs == 0
+    assert second.reused_case_runs == 30
+
+    # Same numbers either way: resuming must not change the result.
+    assert second.disposition_accuracy == first.disposition_accuracy
+    assert second.trajectory_accuracy == first.trajectory_accuracy
+    assert [r.case_id for r in second.results] == [r.case_id for r in first.results]
+    assert [r.actual_disposition for r in second.results] == [
+        r.actual_disposition for r in first.results
+    ]
+
+
+def test_resume_refuses_to_merge_results_from_a_different_model(tmp_path: Path) -> None:
+    """Averaging two models into one number would misreport what was measured."""
+    store_path = tmp_path / "resume.json"
+    run_eval(resume_path=store_path)
+
+    document = json.loads(store_path.read_text(encoding="utf-8"))
+    document["model"] = "some-other-model"
+    store_path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ResumeConflict, match="must not be merged"):
+        run_eval(resume_path=store_path)
+
+
+def test_resume_store_is_write_once(tmp_path: Path) -> None:
+    """The guard against re-rolling a case until it gives a better answer."""
+    store = ResumeStore(tmp_path / "resume.json", model_name="m", agent="a")
+    key = ResumeStore.key("4507000983_00010", None)
+    store.put(key, {"disposition": "post"})
+
+    with pytest.raises(ResumeConflict, match="write-once"):
+        store.put(key, {"disposition": "hold"})
+
+
+def test_resume_records_the_dates_results_were_measured(tmp_path: Path) -> None:
+    """Provenance for a run that spans sittings, so the README can say so."""
+    store_path = tmp_path / "resume.json"
+    report = run_eval(resume_path=store_path)
+
+    assert len(report.session_dates) == 1
+    assert report.session_dates[0].count("-") == 2  # YYYY-MM-DD
+
+
+def test_resume_refuses_to_merge_across_an_agent_code_change(tmp_path: Path) -> None:
+    """The guard that a model-name check alone would miss.
+
+    Editing the Investigator loop can change which tools it calls, so cases
+    measured either side of that edit come from different systems. Averaging
+    them would misreport what was measured -- which is exactly the mistake
+    this project cannot afford in its headline number.
+    """
+    store_path = tmp_path / "resume.json"
+    run_eval(resume_path=store_path)
+
+    document = json.loads(store_path.read_text(encoding="utf-8"))
+    assert document["agent_fingerprint"] == agent_fingerprint()
+    document["agent_fingerprint"] = "0000000000000000"
+    store_path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ResumeConflict, match="agent code has changed"):
+        run_eval(resume_path=store_path)

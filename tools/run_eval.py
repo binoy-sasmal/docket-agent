@@ -9,11 +9,18 @@ actual results table (docs/PROJECT.md section 7, gate 7).
                                                 # scores the 4 public overlays
     python tools/run_eval.py --model --held-out # the final run: adds the 4
                                                 # held-out payloads
+
+A full live run does not fit in the free tier's daily token budget. Add
+`--resume PATH` to bank each completed case-run, then re-invoke the same
+command tomorrow to carry on where it stopped:
+
+    python tools/run_eval.py --model --held-out --resume evals/runs/final.json
 """
 
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from docket.eval_harness import EvalReport, run_eval
 
@@ -25,6 +32,14 @@ def _format_rate(rate: float | None) -> str:
 def print_report(report: EvalReport) -> None:
     print(f"Cases evaluated: {len(report.results)}")
     print(f"Model in the loop: {report.used_model}")
+    if report.session_dates:
+        # A resumed run spans days; say so rather than imply one sitting.
+        span = ", ".join(report.session_dates)
+        print(f"Measured on: {span}")
+        print(
+            f"  case-runs reused from cache: {report.reused_case_runs} | "
+            f"newly measured: {report.computed_case_runs}"
+        )
     print()
     print(f"Disposition accuracy:   {report.disposition_accuracy:.1%}")
     print(f"Trajectory correctness: {report.trajectory_accuracy:.1%}")
@@ -86,6 +101,15 @@ def main() -> int:
         help="Run through a real Groq model instead of the deterministic path.",
     )
     parser.add_argument(
+        "--resume",
+        metavar="PATH",
+        help=(
+            "Cache completed case-runs at PATH and skip any already recorded, so a "
+            "run can span several sittings. Write-once: it never overwrites a result, "
+            "and refuses to merge measurements from a different model."
+        ),
+    )
+    parser.add_argument(
         "--held-out",
         action="store_true",
         help=(
@@ -105,7 +129,21 @@ def main() -> int:
 
         model = get_chat_model()
 
-    report = run_eval(model=model, include_held_out=args.held_out)
+    resume_path = Path(args.resume) if args.resume else None
+    try:
+        report = run_eval(
+            model=model, include_held_out=args.held_out, resume_path=resume_path
+        )
+    except Exception:
+        if resume_path is not None:
+            # The store already saved on the way out; say so, because the
+            # traceback alone looks like the whole run was lost.
+            print()
+            print(
+                f"Run stopped early. Completed case-runs are banked in {resume_path}."
+            )
+            print("Re-run the same command to carry on from there.")
+        raise
     print_report(report)
 
     has_discrepancy = report.disposition_accuracy < 1.0 or report.trajectory_accuracy < 1.0

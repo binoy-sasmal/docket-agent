@@ -32,3 +32,8 @@ Thumbs.db
 node_modules/
 ui/web/dist/
 *.tsbuildinfo
+
+# Resume state for long live eval runs (tools/run_eval.py --resume). Working
+# state, not a result: the numbers that matter go in the README, and the
+# provenance (which dates were measured) is printed with the report.
+evals/runs/
