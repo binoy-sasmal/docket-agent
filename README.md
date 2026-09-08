@@ -13,6 +13,20 @@ Full project description: [docs/PROJECT.md](docs/PROJECT.md).
 Coding-agent instructions live in [AGENTS.md](AGENTS.md). `CLAUDE.md` is kept as
 a compatibility pointer for Claude Code.
 
+## Architecture
+
+![Four-node LangGraph pipeline -- Investigator, Reconciler, policy gate, Proposer -- over a read-only tool layer, with an interrupt() human-approval gate before the only write and no ERP write path.](docs/img/architecture.svg)
+
+The diagram is the whole system on one page, and the constraints it draws are
+the claims the rest of this README defends: the Investigator is the only node
+untrusted document text reaches; the Reconciler holds no tools; the policy gate
+has no model in its import graph; the Proposer emits a `Proposal` whose
+`can_post` is hardcoded `False`. The only write in the picture is to supplier
+memory, and it sits behind the `interrupt()` gate. The eval harness and the web
+UI hang off the same graph rather than around it -- the harness attaches
+injection overlays to in-memory document copies, and the UI is a viewer with no
+capability of its own.
+
 ## Status
 
 BPIC 2019 derivation is hand-checked and frozen: the case selection lives in
@@ -21,11 +35,12 @@ BPIC 2019 derivation is hand-checked and frozen: the case selection lives in
 golden eval set (30 labelled cases, 4 public + 4 held-out injection overlays)
 is frozen in `evals/golden/`.
 
-The four-node graph (Investigator, Reconciler, Policy gate, Proposer) runs on
-real LangGraph, with `interrupt()` gating the human-approval/memory-write
-step -- the agent cannot post without approval (`tests/test_approval_memory.py`).
-The Policy gate is deterministic Python with no model in its import graph;
-the Reconciler holds no tools. A real chat model (Groq, via `langchain-groq`)
+The four-node graph (Investigator, Reconciler, Policy gate, Proposer) shown in
+the [architecture diagram](#architecture) runs on real LangGraph, with
+`interrupt()` gating the human-approval/memory-write step -- the agent cannot
+post without approval (`tests/test_approval_memory.py`). The Policy gate is
+deterministic Python with no model in its import graph; the Reconciler holds
+no tools. A real chat model (Groq, via `langchain-groq`)
 now drives the Investigator's tool-calling loop, the Reconciler's narrative,
 and the Proposer's justification text -- see "Model wiring" below. An
 eval-time overlay mechanism (`docket.tools.injection`) attaches injection
