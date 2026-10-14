@@ -23,7 +23,9 @@ jobs:
         run: ruff check .
 
       - name: Validate draft eval labels
-        run: python tools/validate_day3_drafts.py
+        run: |
+          python tools/validate_day3_drafts.py
+          python tools/validate_note_drafts.py
 
       - name: Type check (mypy)
         run: mypy
