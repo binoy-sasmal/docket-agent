@@ -21,6 +21,7 @@ from typing import Any
 
 from docket.approval import ApprovalRequest
 from docket.graph.skeleton import Claim, Investigation, Proposal, Reconciliation
+from docket.hypothesis import render_hypothesis
 from docket.memory import SupplierMemoryRecord
 from docket.policy import PolicyDecision
 from docket.tools.odata import ToolCall
@@ -184,6 +185,22 @@ def serialize_proposal(proposal: Proposal) -> dict[str, Any]:
         "claims": [serialize_claim(claim) for claim in proposal.claims],
         "policy": serialize_policy(proposal.policy),
         "can_post": proposal.can_post,
+        "hypothesis": _serialize_hypothesis(proposal),
+    }
+
+
+def _serialize_hypothesis(proposal: Proposal) -> dict[str, Any] | None:
+    """The checked note claim, plus the server-rendered line. The client shows
+    `line` as given: rendering stays in docket.hypothesis, so no note text
+    can reach the page through this field."""
+    hypothesis = proposal.hypothesis
+    if hypothesis is None:
+        return None
+    return {
+        "kind": hypothesis.kind,
+        "status": hypothesis.status,
+        "evidence": {"kind": hypothesis.evidence.kind, "key": hypothesis.evidence.key},
+        "line": render_hypothesis(hypothesis),
     }
 
 
@@ -192,6 +209,7 @@ def serialize_approval_request(request: ApprovalRequest) -> dict[str, Any]:
         "case_key": request.case_key,
         "disposition": request.disposition,
         "summary": request.summary,
+        "hypothesis": request.hypothesis,
     }
 
 

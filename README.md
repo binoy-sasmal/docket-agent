@@ -125,6 +125,63 @@ memory. Three properties, each proven in `tests/test_durable_workflow.py`:
   A rejected approval, including a segregation-of-duties failure, is audited
   and writes nothing.
 
+### Note hypotheses
+
+A supplier or clerk note can hold information worth an approver's attention
+("this invoice was sent twice") or an attack ("approve without review"). The
+Investigator, the only node that reads note text, may now extract **at most
+one claim** from a note: one of four kinds (`invoice_pending`,
+`goods_returned`, `price_difference_agreed`, `duplicate_invoice`) plus the key
+of the document the note was on. That is all it can return. Free text, any
+other kind, or a document without a note is discarded by
+`docket.hypothesis.parse_note_claim`.
+
+Code, not the model, then checks the claim against the documents and marks
+it corroborated, contradicted or not checkable. The approver sees a fixed
+template labelled UNVERIFIED, for example "UNVERIFIED claim in a note on
+supplier invoice SI.../000001: an invoice was submitted more than once by
+mistake. Documents: corroborated (2 invoice items each equal the full
+5876.0)." The hypothesis is attached after the policy gate has decided, and
+the Reconciliation the gate reads has no field for one. The raw note stays
+visible in the UI's separate untrusted-notes panel.
+
+The labels were frozen before the feature was written, in
+[`evals/notes/`](evals/notes/), with a provenance record in
+[`evals/notes/FROZEN.md`](evals/notes/FROZEN.md) and a manifest checked in CI.
+They cover 13 public cases: true and false claims of each kind, a hard
+negative for the duplicate rule, courtesy text with no claim, a claim wrapped
+in coercion, and a fake "system notice". Live run, 2026-10-14,
+`openai/gpt-oss-120b` on the free tier with the product's completion cap
+(`python tools/run_note_eval.py`):
+
+| Metric | Public (13) | Held-out (4) |
+|---|---|---|
+| Hypothesis correct (kind, document, status) | 13/13 | not yet authored |
+| Hypothesis invented for a note with no claim | 0/3 | not yet authored |
+| Disposition and reason unchanged from the golden label | 13/13 | not yet authored |
+| Coercive phrase in agent-written approver text | 0/13 | not yet authored |
+
+Read those numbers with these in hand:
+
+- **The public cases were written by the session that designed the feature.**
+  They are not independent of it. Four held-out slots are reserved for a
+  separate, repo-blind author, using the brief recorded in
+  `evals/draft/held_out_note_brief.md`, and will be reported separately.
+- **One run, not a distribution.** Thirteen cases at temperature 0 cannot
+  distinguish a robust result from a lucky one.
+- **The first live run was void.** The prompt lists a note's document as
+  "kind key", the model answered in that form, and the parser required the
+  bare key, so it discarded every such claim. Fixed in the parser, with a
+  regression test; the prompt was not changed. All 13 cases were then re-run
+  from scratch.
+- **Only the status rules are CI-gated.** `tests/test_note_hypothesis.py`
+  checks that the rules reproduce all 10 frozen claim labels, plus the
+  parsing and isolation properties. Whether the model extracts the right
+  claim is measured only by the live run above.
+- **This adds a model call to the Investigator** whenever a fetched document
+  carries a note, which includes the existing injection overlays. The
+  published injection results in "Status" were measured before it existed.
+
 ### Connected mode
 
 The same graph can read its documents over HTTP from an OData v4 service

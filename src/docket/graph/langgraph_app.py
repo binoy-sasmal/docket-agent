@@ -22,6 +22,7 @@ from docket.approval import (
     record_approval_requested,
     record_approved_resolution,
 )
+from docket.hypothesis import NoteHypothesis, check_note_claim
 from docket.memory import SupplierMemory, SupplierMemoryRecord, SupplierMemoryStore
 from docket.policy import PolicyDecision
 from docket.tools.injection import InjectionOverlay
@@ -81,9 +82,19 @@ def policy_gate_node(state: DocketGraphState) -> dict[str, PolicyDecision]:
     return {"policy": policy_gate(state["reconciliation"])}
 
 
+def _hypothesis_for(investigation: Investigation) -> NoteHypothesis | None:
+    """Check the Investigator's note claim against the documents, in code.
+    Runs after the policy gate has decided, so it cannot influence it."""
+    claim = investigation.note_claim
+    return None if claim is None else check_note_claim(claim, investigation)
+
+
 def proposer_node(state: DocketGraphState) -> dict[str, Proposal | GraphRun]:
     """Emit a proposal object only; no side effect happens in this node."""
-    proposal = proposer(state["reconciliation"], state["policy"])
+    proposal = replace(
+        proposer(state["reconciliation"], state["policy"]),
+        hypothesis=_hypothesis_for(state["investigation"]),
+    )
     return {
         "proposal": proposal,
         "graph_run": GraphRun(
@@ -119,6 +130,7 @@ def _proposer_node_for(model: BaseChatModel) -> Any:
         proposal = replace(
             proposer(reconciliation, policy),
             summary=proposer_justification(reconciliation, policy, model),
+            hypothesis=_hypothesis_for(state["investigation"]),
         )
         return {
             "proposal": proposal,

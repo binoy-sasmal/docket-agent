@@ -27,6 +27,8 @@ class ApprovalRequest:
     case_key: str
     disposition: str
     summary: str
+    hypothesis: str | None = None
+    """The rendered UNVERIFIED note claim, if any (docket.hypothesis)."""
 
 
 @dataclass(frozen=True)
@@ -38,10 +40,13 @@ class ApprovalRecord:
 
 
 def approval_request_for(proposal: Proposal) -> ApprovalRequest:
+    from docket.hypothesis import render_hypothesis
+
     return ApprovalRequest(
         case_key=_case_key(proposal),
         disposition=proposal.disposition,
         summary=proposal.summary,
+        hypothesis=render_hypothesis(proposal.hypothesis) if proposal.hypothesis else None,
     )
 
 
