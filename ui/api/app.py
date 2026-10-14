@@ -13,6 +13,8 @@ which is a note about a past case, not an ERP write.
 from __future__ import annotations
 
 import os
+import threading
+from copy import deepcopy
 from typing import Any, Literal
 
 from dotenv import load_dotenv
@@ -279,6 +281,10 @@ class DecisionRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
+# FastAPI sync handlers may run concurrently even with a single worker.
+_DECISION_LOCK = threading.Lock()
+
+
 @app.post("/api/runs/{run_id}/decision")
 def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
     """Resume the graph's approval interrupt with a human decision.
@@ -286,7 +292,13 @@ def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
     Approving writes one episodic record to supplier memory. It does not post,
     pay or release anything -- no such path exists.
     """
-    record = get_run(run_id)
+    with _DECISION_LOCK:
+        return _decide_run(run_id, request)
+
+
+def _decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
+    # Do not mutate the cached record until its durable save succeeds.
+    record = deepcopy(get_run(run_id))
     if record.status != "awaiting_approval":
         raise UiError(
             f"run {run_id} was already {record.status}; a decision is recorded once",
@@ -312,6 +324,23 @@ def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
     graph, _ = graph_for(record.mode, record.overlay_id)
     config = {"configurable": {"thread_id": record.thread_id}}
     approved = request.decision == "approve"
+    intent = {
+        "decision": request.decision,
+        "approver": approver,
+        "reason": reason,
+        "proposed_by": record.proposed_by,
+    }
+    if record.decision is not None:
+        if any(record.decision.get(key) != value for key, value in intent.items()):
+            raise UiError("a decision is already pending; retry the original decision", 409)
+    else:
+        # Refuse legacy stale UI records rather than attribute a completed graph
+        # to this caller. New runs persist intent before any graph side effect.
+        if graph.graph.get_state(config).values.get("approval_record") is not None:
+            raise UiError("graph already approved; UI decision requires reconciliation", 409)
+        record.decision = {**intent, "decided_at": utc_now(), "memory_written": False}
+        save_run(deepcopy(record))
+    decided_at = record.decision["decided_at"]
 
     try:
         result = graph.graph.invoke(
@@ -339,7 +368,7 @@ def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
             "approver": approver,
             "reason": reason,
             "proposed_by": record.proposed_by,
-            "decided_at": utc_now(),
+            "decided_at": decided_at,
             "memory_written": False,
             "detail": str(exc),
         }
@@ -359,7 +388,7 @@ def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
         "approver": approver,
         "reason": reason,
         "proposed_by": record.proposed_by,
-        "decided_at": utc_now(),
+        "decided_at": decided_at,
         "memory_written": written is not None,
     }
     save_run(record)

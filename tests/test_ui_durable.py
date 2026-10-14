@@ -104,3 +104,51 @@ def test_memory_mode_is_still_available_and_says_so(tmp_path: Path) -> None:
     )
     assert meta["durable"] is False
     assert "lost when the server stops" in meta["note"]
+
+
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+def test_failed_final_save_preserves_original_decision(tmp_path: Path, decision: str) -> None:
+    db = tmp_path / "recovery.sqlite"
+    started = _server_process(db, f"""
+        import ui.api.app as api
+        run = client.post("/api/runs", json={{
+            "purchase_order": "4507000477", "purchase_order_item": "00060"
+        }}).json()
+        save = api.save_run
+        def fail_final(record):
+            if record.status != "awaiting_approval":
+                raise OSError("simulated final save failure")
+            save(record)
+        api.save_run = fail_final
+        try:
+            client.post("/api/runs/" + run["run_id"] + "/decision", json={{
+                "decision": "{decision}", "approver": "reviewer-a", "reason": "original"
+            }})
+        except OSError:
+            pass
+        else:
+            raise AssertionError("fault was not triggered")
+        pending = client.get("/api/runs/" + run["run_id"]).json()
+        assert pending["status"] == "awaiting_approval"
+        print(json.dumps({{"run_id": run["run_id"],
+                          "decided_at": pending["decision"]["decided_at"]}}))
+    """)
+    run_id = started["run_id"]
+    recovered = _server_process(db, f"""
+        endpoint = "/api/runs/{run_id}/decision"
+        conflict = client.post(endpoint, json={{
+            "decision": "reject", "approver": "reviewer-b", "reason": "replacement"
+        }})
+        assert conflict.status_code == 409, conflict.text
+        result = client.post(endpoint, json={{
+            "decision": "{decision}", "approver": "reviewer-a", "reason": "original"
+        }})
+        assert result.status_code == 200, result.text
+        data = result.json()
+        assert data["run"]["decision"]["approver"] == "reviewer-a"
+        assert data["run"]["decision"]["reason"] == "original"
+        assert len(data["supplier_memory"]) == {1 if decision == "approve" else 0}
+        print(json.dumps(data["run"]))
+    """)
+    assert recovered["status"] == ("approved" if decision == "approve" else "rejected")
+    assert recovered["decision"]["decided_at"] == started["decided_at"]

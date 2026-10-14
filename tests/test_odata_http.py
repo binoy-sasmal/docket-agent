@@ -151,3 +151,13 @@ def test_injection_overlays_are_refused_in_connected_mode() -> None:
     )
     with pytest.raises(ValueError, match="overlays"):
         build_docket_graph(tools_factory=lambda: _http_tools([]), overlays=(overlay,))
+
+
+@pytest.mark.parametrize("body", [{}, {"value": None}, {"value": {}}, [], {"value": [1]}])
+def test_malformed_collection_fails_closed(body: object) -> None:
+    tools = HttpODataTools(
+        "http://erp.test/odata/v4/procurement",
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=body)),
+    )
+    with pytest.raises(ValueError, match="Invalid OData collection"):
+        tools.list_A_SupplierInvoiceItemPurOrdRef(PO, ITEM)

@@ -180,7 +180,11 @@ class HttpODataTools:
             response = self._client.get(url)
             response.raise_for_status()
             body = response.json()
-            rows.extend(_parse(model, row) for row in body.get("value", []))
+            if not isinstance(body, dict) or not isinstance(body.get("value"), list):
+                raise ValueError("Invalid OData collection: expected a value array")
+            if not all(isinstance(row, dict) for row in body["value"]):
+                raise ValueError("Invalid OData collection: expected object rows")
+            rows.extend(_parse(model, row) for row in body["value"])
             next_link = body.get("@odata.nextLink")
             # A next link carries its own query string; resolve it against
             # the service root and send it as given.
