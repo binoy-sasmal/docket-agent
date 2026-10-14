@@ -141,8 +141,8 @@ function Header({
         >
           {meta.live_mode_available ? "Live available" : "Deterministic only"}
         </StatusTag>
-        <StatusTag tone="neutral" glyph="◇" title={meta.persistence_note}>
-          In-process state
+        <StatusTag tone="neutral" glyph="◇" title={meta.persistence.note}>
+          {meta.persistence.durable ? "Durable state" : "In-process state"}
         </StatusTag>
       </div>
     </header>

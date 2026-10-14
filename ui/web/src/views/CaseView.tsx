@@ -245,10 +245,10 @@ function EmptyState({ meta }: { meta: Meta }) {
           className="u-card px-4 py-3"
         >
           <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--ink)" }}>
-            Process-local state
+            {meta.persistence.durable ? "Durable state" : "Process-local state"}
           </p>
           <p className="mt-1" style={{ color: "var(--ink-2)", fontSize: "13px", lineHeight: 1.6 }}>
-            {meta.persistence_note}
+            {meta.persistence.note}
           </p>
         </div>
       </div>

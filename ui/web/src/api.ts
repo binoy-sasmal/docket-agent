@@ -53,6 +53,7 @@ export interface GoldenSetMeta {
 export interface Meta {
   can_post: boolean;
   can_post_note: string;
+  persistence: { durable: boolean; path: string | null; note: string };
   persistence_note: string;
   live_mode_available: boolean;
   live_model: string;

@@ -31,7 +31,7 @@ cd ui/web && npm install && npm run build
 uvicorn ui.api.app:app --port 8000 --workers 1
 ```
 
-`--workers 1` is not optional. See "Process-local state" below.
+Run a single worker. See "Durable state" below.
 
 ## Why it is shaped this way
 
@@ -107,22 +107,38 @@ calls per case and can take minutes. Its failures are shown verbatim: a failed
 or never-run live eval leaves the live numbers **unverified**, which is not a
 licence to display an earlier or estimated figure in their place.
 
-### Process-local state
+### Durable state
 
-The graph uses `InMemorySaver` and `SupplierMemoryStore` is an in-memory dict.
-Both die with the server, and the UI says so. A durable checkpointer underneath
-a still-volatile memory store would make the durability story misleading in
-exactly the place the project's claims live — approved writes.
+By default the server keeps every piece of workflow state in one SQLite file,
+`data/runtime/docket-ui.sqlite` (gitignored; override with
+`DOCKET_UI_STATE_DB=<path>`): the graph's checkpoints, supplier memory with its
+audit trail (both from `docket.durable`), and the UI's own run records. A run
+waiting for approval survives a server restart, can be approved by the next
+server process, and a decision recorded before the restart is still refused a
+second time after it. `tests/test_ui_durable.py` proves this by running the
+API in three separate processes against one file.
 
-This is why `--workers 1` matters: a resumed `interrupt()` must reach the same
-checkpointer instance that created it, and a second worker process would have
-its own.
+All three are durable together or not at all. A durable checkpointer under a
+volatile memory store would let a resume succeed while the approved write it
+produced evaporated; durable graph state with volatile run records would leave
+paused threads that no screen can reach.
+
+`DOCKET_UI_STATE_DB=memory` restores the old process-local behaviour. The
+header tag and the case view read the server's `persistence` field, so the UI
+says which mode it is in rather than assuming one.
+
+Run a single worker either way. SQLite serialises writers, but the compiled
+graph cache and run lock are per process, and multi-worker operation has not
+been tested.
 
 The checkpoint serializer is given an **explicit allowlist** of the types the
-graph puts into its state (`_CHECKPOINT_TYPES` in `ui/api/state.py`). LangGraph
-currently allows any type with a deprecation warning and documents that this
-becomes strict — and resume is the human-approval path, not somewhere to
-discover a breaking change later.
+graph puts into its state (`CHECKPOINT_TYPES` in `docket.durable`, shared by
+both modes). LangGraph currently allows any type with a deprecation warning
+and documents that this becomes strict — and resume is the human-approval
+path, not somewhere to discover a breaking change later.
+
+*(This section was "Process-local state" until 2026-10-14, when the UI moved
+onto the durable store.)*
 
 ## Design
 

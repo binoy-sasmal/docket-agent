@@ -102,9 +102,11 @@ and every modelling assumption -- is in
 
 `docket.durable.build_durable_docket_graph(path)` builds the same graph with
 every piece of workflow state in one SQLite file: LangGraph's checkpoints,
-supplier memory, and an audit trail. The frozen eval and the default graph
-are untouched and still run entirely in memory. Three properties, each
-proven in `tests/test_durable_workflow.py`:
+supplier memory, and an audit trail. The web UI uses the same store by
+default, together with its own run records, so a run awaiting approval
+survives a server restart (`ui/README.md`, `tests/test_ui_durable.py`). The
+frozen eval and the default graph are untouched and still run entirely in
+memory. Three properties, each proven in `tests/test_durable_workflow.py`:
 
 - **Restart-safe.** A case paused at the approval `interrupt()` is resumed by
   a *different process* after the first has exited. The test runs the two
@@ -198,12 +200,12 @@ they are the boundary of what this project demonstrates.
   exist -- added after the original scope cut -- is a human-approval gate
   (`interrupt()`) and a web view for exercising it; approving records a note
   to supplier memory and nothing else.
-- **Durable approval is a library capability, not yet the UI's.**
-  `build_durable_docket_graph` keeps checkpoints, supplier memory and the
-  audit trail in one SQLite file (see "Durable approval" above). The web UI
-  still builds the process-local graph, so its runs die with the server and
-  it says so. Single node only: SQLite was chosen because the property under
-  test is restart safety, not concurrent approvers on several machines.
+- **Durable approval is single node.** Checkpoints, supplier memory, the
+  audit trail and the web UI's run records live in one SQLite file (see
+  "Durable approval" above and `ui/README.md`), so a paused approval
+  survives a restart. SQLite was chosen because the property under test is
+  restart safety, not concurrent approvers on several machines; the UI runs
+  one worker and multi-worker operation is untested.
   *(This bullet read "Graph checkpoints and supplier memory are
   process-local ... Nothing here is a persistence design" until 2026-10-14.
   Corrected rather than left standing.)*

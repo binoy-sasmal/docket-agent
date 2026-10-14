@@ -24,7 +24,7 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 | Architecture and permission boundaries | `docs/PROJECT.md` section 3 and `tests/test_architecture.py` |
 | Dataset derivation and authored fields | `docs/DERIVATION.md` |
 | Human-approval behavior | `tests/test_approval_memory.py` |
-| Durable approval: restart safety, idempotency, audit trail | `README.md` "Durable approval"; `src/docket/durable.py`; `src/docket/approval.py`; `tests/test_durable_workflow.py` |
+| Durable approval: restart safety, idempotency, audit trail | `README.md` "Durable approval"; `src/docket/durable.py`; `src/docket/approval.py`; `tests/test_durable_workflow.py`; the web UI's restart test `tests/test_ui_durable.py` (needs the `ui` extra, so it is skipped in CI) |
 | Golden-set provenance | `evals/golden/FROZEN.md` |
 | UI scope and limitations | `ui/README.md` |
 
@@ -35,7 +35,8 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Describe SAP entities as OData-shaped fixtures, not a live SAP integration.
 - Pair every evaluation result with its denominator and the limitations in `README.md`.
 - Durable approval: "restart-safe, exactly-once human approval with an append-only audit trail,
-  proven across separate processes". It is a library capability on SQLite, single node.
+  proven across separate processes", in the library and in the web UI. SQLite, single node, one
+  UI worker.
 
 ## Unsupported claims
 
@@ -43,7 +44,6 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Connection to a live ERP or SAP system.
 - Accounts-payable consulting expertise.
 - Broad prompt-injection robustness beyond the documented evaluation set.
-- A durable web UI: the UI still uses the process-local graph.
 - Distributed or multi-node durability, concurrent approvers across machines, or Postgres-backed
   persistence.
 - Event streaming or Kafka; none exists in this system.
