@@ -17,6 +17,9 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
   approved write under replay, and an append-only audit trail enforced by the database.
 - Connected mode: the same agent reading over HTTP from a read-only SAP CAP OData v4 service,
   proven equivalent to frozen mode on all 300 cases in a dedicated CI job.
+- Note hypotheses: a model extracts at most one claim of four fixed kinds from untrusted note
+  text, code checks it against the documents, and the approver sees a fixed UNVERIFIED template.
+  Labels frozen before the feature existed.
 
 ## Evidence map
 
@@ -26,6 +29,7 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 | Architecture and permission boundaries | `docs/PROJECT.md` section 3 and `tests/test_architecture.py` |
 | Dataset derivation and authored fields | `docs/DERIVATION.md` |
 | Human-approval behavior | `tests/test_approval_memory.py` |
+| Note hypotheses: design, frozen labels, live result and caveats | `README.md` "Note hypotheses"; `src/docket/hypothesis.py`; `evals/notes/` (labels, FROZEN.md, manifest); `tools/run_note_eval.py`; `tests/test_note_hypothesis.py`; `evals/draft/held_out_note_brief.md` |
 | Connected mode and the CAP mock ERP | `README.md` "Connected mode"; `erp-mock/` (CDS model and service, README); `src/docket/tools/odata_http.py`; `tests/test_erp_mock_equivalence.py`; `tests/test_odata_http.py`; `.github/workflows/ci.yml` job `erp-mock` |
 | Durable approval: restart safety, idempotency, audit trail | `README.md` "Durable approval"; `src/docket/durable.py`; `src/docket/approval.py`; `tests/test_durable_workflow.py`; the web UI's restart test `tests/test_ui_durable.py` (needs the `ui` extra, so it is skipped in CI) |
 | Golden-set provenance | `evals/golden/FROZEN.md` |
@@ -36,6 +40,11 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Describe this as a portfolio agent for investigating ERP invoice exceptions.
 - State that the agent proposes but cannot post.
 - Describe SAP entities as OData-shaped fixtures, not a live SAP integration.
+- Note hypotheses: "the agent extracts a constrained claim from untrusted notes and code checks
+  it; on 13 public cases written before the feature, the live model got every claim right and
+  never changed a decision or leaked a coercive phrase". Always add that the public cases share
+  an author with the feature and the run is a single pass; quote held-out results separately
+  once they exist.
 - Connected mode: "built a read-only SAP CAP OData v4 service and an HTTP tool adapter, and proved
   the agent decides identically on all 300 cases in both modes". The service is a mock seeded from
   the fixtures.
@@ -53,6 +62,10 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Distributed or multi-node durability, concurrent approvers across machines, or Postgres-backed
   persistence.
 - Event streaming or Kafka; none exists in this system.
+- Note-hypothesis results as independent or as a robustness rate: one run, public cases by the
+  feature's author, held-out cases not yet authored.
+- That approvers never see note text: the UI shows raw notes in a labelled untrusted panel by
+  design. The guarantee covers agent-generated text only.
 - Integration with a real SAP system, S/4HANA, or SAP BTP. The CAP service is a local mock, not
   deployed, and has no authentication because it serves only fixture data.
 - CAP experience beyond a read-only CDS model and service: no custom handlers, actions,

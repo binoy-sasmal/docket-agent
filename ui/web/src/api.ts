@@ -192,6 +192,13 @@ export interface PolicyView {
   allowed_dispositions: Disposition[];
 }
 
+export interface HypothesisView {
+  kind: "invoice_pending" | "goods_returned" | "price_difference_agreed" | "duplicate_invoice";
+  status: "corroborated" | "contradicted" | "not_checkable";
+  evidence: { kind: string; key: string };
+  line: string;
+}
+
 export interface ProposalView {
   disposition: Disposition;
   summary: string;
@@ -199,6 +206,7 @@ export interface ProposalView {
   claims: ClaimView[];
   policy: PolicyView;
   can_post: boolean;
+  hypothesis: HypothesisView | null;
 }
 
 export interface DecisionView {
@@ -227,7 +235,12 @@ export interface RunView {
   reconciliation: ReconciliationView;
   policy: PolicyView;
   proposal: ProposalView;
-  approval_request: { case_key: string; disposition: string; summary: string };
+  approval_request: {
+    case_key: string;
+    disposition: string;
+    summary: string;
+    hypothesis: string | null;
+  };
   interrupt_payload: Record<string, unknown>;
   golden: {
     in_golden_set: boolean;

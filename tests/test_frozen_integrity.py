@@ -23,6 +23,8 @@ FROZEN_DIR = REPO_ROOT / "fixtures" / "frozen"
 FROZEN_MANIFEST = FROZEN_DIR / "MANIFEST.sha256"
 GOLDEN_DIR = REPO_ROOT / "evals" / "golden"
 GOLDEN_MANIFEST = GOLDEN_DIR / "MANIFEST.sha256"
+NOTES_DIR = REPO_ROOT / "evals" / "notes"
+NOTES_MANIFEST = NOTES_DIR / "MANIFEST.sha256"
 
 
 @pytest.mark.skipif(
@@ -41,3 +43,10 @@ def test_frozen_selection_matches_its_manifest() -> None:
 def test_golden_evals_match_their_manifest() -> None:
     ok, problems = verify_manifest(GOLDEN_DIR, GOLDEN_MANIFEST)
     assert ok, "evals/golden/ does not match MANIFEST.sha256:\n" + "\n".join(problems)
+
+
+def test_note_hypothesis_evals_match_their_manifest() -> None:
+    """evals/notes/ is Tier 1 like evals/golden/: frozen before the feature
+    it measures existed, and never edited to make it pass."""
+    ok, problems = verify_manifest(NOTES_DIR, NOTES_MANIFEST)
+    assert ok, "evals/notes/ does not match MANIFEST.sha256:\n" + "\n".join(problems)

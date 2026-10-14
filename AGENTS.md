@@ -9,8 +9,8 @@ look for that filename.
 
 ## The one rule that overrides everything else
 
-**Never edit, regenerate, or delete anything under `fixtures/frozen/` or
-`evals/golden/`.** These are the frozen selection, the labelled exception set,
+**Never edit, regenerate, or delete anything under `fixtures/frozen/`,
+`evals/golden/` or `evals/notes/`.** These are the frozen selection, the labelled exception set,
 and the eval assertions. They are authored before any agent code exists and
 frozen by content hash so that the agent under test cannot influence the ground
 truth it is measured against (see `docs/PROJECT.md` section 6.1).

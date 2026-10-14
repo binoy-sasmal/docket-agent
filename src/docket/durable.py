@@ -40,6 +40,7 @@ from docket.graph.skeleton import (
     Proposal,
     Reconciliation,
 )
+from docket.hypothesis import NoteClaim, NoteHypothesis
 from docket.memory import AuditEvent, SupplierMemoryRecord
 from docket.policy import PolicyDecision
 from docket.schema.procurement import (
@@ -67,6 +68,8 @@ CHECKPOINT_TYPES = (
     Reconciliation,
     PolicyDecision,
     SupplierMemoryRecord,
+    NoteClaim,
+    NoteHypothesis,
     ToolCall,
     ActingUser,
     AMaterialDocumentEntry,

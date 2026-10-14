@@ -491,6 +491,23 @@ export function ProposalPanel({
       <p style={{ color: "var(--ink)", fontSize: "14px", lineHeight: 1.6 }}>
         {proposal.summary}
       </p>
+      {proposal.hypothesis && (
+        <div
+          className="mt-3 border px-3 py-2"
+          style={{ borderColor: "var(--rule-strong)", background: "var(--surface-2)" }}
+        >
+          <StatusTag
+            tone={proposal.hypothesis.status === "contradicted" ? "warning" : "info"}
+            glyph="?"
+            title="Extracted from an untrusted note and checked against the documents by code. Never an input to the decision."
+          >
+            {`note claim: ${proposal.hypothesis.status.replace("_", " ")}`}
+          </StatusTag>
+          <p className="mt-2" style={{ color: "var(--ink-2)", fontSize: "13px", lineHeight: 1.6 }}>
+            {proposal.hypothesis.line}
+          </p>
+        </div>
+      )}
       <div
         className="mt-3 flex flex-wrap items-center gap-2 border px-2 py-2"
         style={{ borderColor: "var(--rule-strong)", background: "var(--surface-2)" }}
