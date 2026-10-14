@@ -15,6 +15,8 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Frozen fixtures, contamination controls, and CI evaluation gates.
 - Durable, restart-safe approval: a paused case resumed by a different process, an exactly-once
   approved write under replay, and an append-only audit trail enforced by the database.
+- Connected mode: the same agent reading over HTTP from a read-only SAP CAP OData v4 service,
+  proven equivalent to frozen mode on all 300 cases in a dedicated CI job.
 
 ## Evidence map
 
@@ -24,6 +26,7 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 | Architecture and permission boundaries | `docs/PROJECT.md` section 3 and `tests/test_architecture.py` |
 | Dataset derivation and authored fields | `docs/DERIVATION.md` |
 | Human-approval behavior | `tests/test_approval_memory.py` |
+| Connected mode and the CAP mock ERP | `README.md` "Connected mode"; `erp-mock/` (CDS model and service, README); `src/docket/tools/odata_http.py`; `tests/test_erp_mock_equivalence.py`; `tests/test_odata_http.py`; `.github/workflows/ci.yml` job `erp-mock` |
 | Durable approval: restart safety, idempotency, audit trail | `README.md` "Durable approval"; `src/docket/durable.py`; `src/docket/approval.py`; `tests/test_durable_workflow.py`; the web UI's restart test `tests/test_ui_durable.py` (needs the `ui` extra, so it is skipped in CI) |
 | Golden-set provenance | `evals/golden/FROZEN.md` |
 | UI scope and limitations | `ui/README.md` |
@@ -33,6 +36,9 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Describe this as a portfolio agent for investigating ERP invoice exceptions.
 - State that the agent proposes but cannot post.
 - Describe SAP entities as OData-shaped fixtures, not a live SAP integration.
+- Connected mode: "built a read-only SAP CAP OData v4 service and an HTTP tool adapter, and proved
+  the agent decides identically on all 300 cases in both modes". The service is a mock seeded from
+  the fixtures.
 - Pair every evaluation result with its denominator and the limitations in `README.md`.
 - Durable approval: "restart-safe, exactly-once human approval with an append-only audit trail,
   proven across separate processes", in the library and in the web UI. SQLite, single node, one
@@ -47,6 +53,10 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Distributed or multi-node durability, concurrent approvers across machines, or Postgres-backed
   persistence.
 - Event streaming or Kafka; none exists in this system.
+- Integration with a real SAP system, S/4HANA, or SAP BTP. The CAP service is a local mock, not
+  deployed, and has no authentication because it serves only fixture data.
+- CAP experience beyond a read-only CDS model and service: no custom handlers, actions,
+  authorisation, or deployment.
 
 ## Verification rule
 

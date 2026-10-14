@@ -125,6 +125,31 @@ memory. Three properties, each proven in `tests/test_durable_workflow.py`:
   A rejected approval, including a segregation-of-duties failure, is audited
   and writes nothing.
 
+### Connected mode
+
+The same graph can read its documents over HTTP from an OData v4 service
+instead of from local files: pass `tools_factory=lambda: HttpODataTools(url)`
+to `build_docket_graph`. [`erp-mock/`](erp-mock/) is a read-only SAP CAP
+service with the four entity sets the Investigator uses, seeded from the
+frozen fixtures. Frozen mode stays the default and is what the eval measures;
+injection overlays cannot be combined with connected mode.
+
+`tests/test_erp_mock_equivalence.py`, run in its own CI job against the live
+service, checks every one of the 300 frozen-selected cases:
+
+- each lookup returns the same documents as frozen mode;
+- the deterministic pipeline makes the same tool calls, policy decision and
+  proposal, with identical claim text, citing the same documents;
+- the service refuses `POST`, `PATCH` and `DELETE` with 405 and its data is
+  unchanged afterwards.
+
+The one tolerated difference is the order in which a claim lists its
+evidence, because an ERP returns documents in query order and the fixtures do
+not follow it for every case. Building it surfaced two fixture findings, a
+duplicated purchase-order header with two different dates and an
+amount-formatting dependence, both recorded in `erp-mock/README.md` and the
+limits below. The fixtures were not changed.
+
 ## Known limits
 
 Volunteering these is what makes the rest of the claims worth reading
@@ -139,7 +164,14 @@ they are the boundary of what this project demonstrates.
   system was ever contacted. A live Business Accelerator Hub sandbox was
   rejected deliberately: shared mutable state, uncertain coverage and rate
   limits would make the eval suite non-reproducible, which would undermine
-  the one thing this project exists to show.
+  the one thing this project exists to show. Connected mode (see "Connected
+  mode" above) reads over HTTP from a CAP service, but that service is a
+  mock seeded from the same fixtures, not an ERP.
+- **Claim text prints amounts at the source's scale.** The fixtures hold a
+  net price as `243.0`; an ERP would typically send `243.00`, and the
+  proposal would then read "243.00 EUR". Decisions are unaffected. Found by
+  the connected-mode equivalence test; the mock mirrors the fixtures' scale
+  rather than the agent being changed to hide it.
 - **~300 derived cases, 30 of them labelled, one exception class.** Not a
   representative sample of an accounts-payable queue.
 - **Dispositions and injection payloads are authored, not observed.** BPIC
