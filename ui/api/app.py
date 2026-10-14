@@ -48,8 +48,10 @@ from .state import (
     list_runs,
     memory_store,
     new_run_id,
+    persistence,
     register_run,
     repo_root,
+    save_run,
     utc_now,
 )
 
@@ -125,11 +127,8 @@ def get_meta() -> dict[str, Any]:
             "Proposal.can_post is hardcoded False in docket.graph.skeleton.proposer and is "
             "never model-controlled. There is no ERP write path in this system."
         ),
-        "persistence_note": (
-            "Graph checkpoints (InMemorySaver) and supplier memory are process-local and "
-            "are lost when the server stops. Run with a single worker: a resumed "
-            "interrupt() must reach the same checkpointer instance that created it."
-        ),
+        "persistence": persistence(),
+        "persistence_note": persistence()["note"],
         "live_mode_available": bool(os.environ.get("GROQ_API_KEY")),
         "live_model": os.environ.get("GROQ_MODEL", DEFAULT_MODEL),
         "node_matrix": NODE_MATRIX,
@@ -344,6 +343,7 @@ def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
             "memory_written": False,
             "detail": str(exc),
         }
+        save_run(record)
         return {
             "run": _run_payload(record),
             "memory_record": None,
@@ -362,6 +362,7 @@ def decide_run(run_id: str, request: DecisionRequest) -> dict[str, Any]:
         "decided_at": utc_now(),
         "memory_written": written is not None,
     }
+    save_run(record)
     return {
         "run": _run_payload(record),
         "memory_record": serialize_memory_record(written) if written is not None else None,

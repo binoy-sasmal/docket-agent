@@ -22,6 +22,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -218,6 +219,30 @@ class SqliteSupplierMemoryStore:
         )
 
 
+@dataclass(frozen=True)
+class DurableState:
+    """The checkpointer and memory store over one SQLite file.
+
+    Opened once and shared by every graph built over it: a caller that
+    compiles several graph variants (the web UI builds one per mode and
+    overlay) needs them all to resume each other's threads and write to one
+    supplier namespace.
+    """
+
+    checkpointer: Any
+    memory_store: SqliteSupplierMemoryStore
+
+
+def open_durable_state(path: str | Path) -> DurableState:
+    conn = sqlite3.connect(str(path), check_same_thread=False)
+    return DurableState(
+        checkpointer=SqliteSaver(
+            conn, serde=JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES)
+        ),
+        memory_store=SqliteSupplierMemoryStore(path),
+    )
+
+
 def build_durable_docket_graph(
     path: str | Path,
     *,
@@ -227,13 +252,10 @@ def build_durable_docket_graph(
     """The same graph as `build_docket_graph`, with every piece of workflow
     state in one SQLite file at `path`. Any process that opens the same file
     can resume a case another process paused."""
-    conn = sqlite3.connect(str(path), check_same_thread=False)
-    checkpointer: Any = SqliteSaver(
-        conn, serde=JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES)
-    )
+    state = open_durable_state(path)
     return build_docket_graph(
-        memory_store=SqliteSupplierMemoryStore(path),
-        checkpointer=checkpointer,
+        memory_store=state.memory_store,
+        checkpointer=state.checkpointer,
         model=model,
         overlays=overlays,
     )

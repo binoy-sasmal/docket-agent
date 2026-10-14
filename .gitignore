@@ -37,3 +37,7 @@ ui/web/dist/
 # state, not a result: the numbers that matter go in the README, and the
 # provenance (which dates were measured) is printed with the report.
 evals/runs/
+
+# Durable UI state (DOCKET_UI_STATE_DB default): checkpoints, supplier memory,
+# audit trail and run records. Working state of a local server, not a result.
+data/runtime/

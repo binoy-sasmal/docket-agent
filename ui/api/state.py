@@ -1,23 +1,32 @@
-"""Process-local runtime state: compiled graphs, live runs, case catalogue.
+"""Runtime state for the web UI: compiled graphs, runs, case catalogue.
 
-Everything here is deliberately in-process and dies with the server.
+By default every piece of workflow state lives in one SQLite file
+(`DOCKET_UI_STATE_DB`, default `data/runtime/docket-ui.sqlite`): LangGraph's
+checkpoints, supplier memory with its audit trail (both via
+`docket.durable`), and the UI's own run records. A run paused at the approval
+`interrupt()` therefore survives a server restart and can be approved by the
+next process, and a decision recorded before the restart is still refused a
+second time after it.
 
-The graph's short-term state uses `InMemorySaver`, and `SupplierMemoryStore`
-is an in-memory dict of lists. Putting a durable checkpointer underneath the
-graph while approved memory writes still evaporated on restart would make the
-durability story misleading in exactly the place the project's claims live --
-approved writes. So both are in-memory, one worker, and the UI says so.
+All three are durable together, or none is. A durable checkpointer under a
+volatile memory store would let a resume succeed while the approved write it
+produced evaporated; durable graph state with volatile run records would leave
+paused threads that no screen can reach. Set `DOCKET_UI_STATE_DB=memory` for
+the old process-local behaviour, which the UI then states plainly.
 
-The consequence to keep in mind: the server must run with a single worker.
-`interrupt()` and its resume have to find the same `InMemorySaver` instance,
-and a second worker process would have its own.
+Run a single worker either way. SQLite serialises writers, but the compiled
+graph cache and run lock are per process, and multi-worker operation has not
+been tested.
 """
 
 from __future__ import annotations
 
+import json
+import os
+import sqlite3
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -25,72 +34,108 @@ from typing import Any, Literal
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
+from docket.durable import CHECKPOINT_TYPES, open_durable_state
 from docket.eval_harness import GOLDEN_DIR, load_golden_labels
 from docket.fixture_store import FrozenFixtureStore
 from docket.graph.langgraph_app import DocketLangGraph, build_docket_graph
-from docket.graph.skeleton import (
-    CaseKey,
-    Claim,
-    EvidenceHandle,
-    GraphRun,
-    Investigation,
-    Proposal,
-    Reconciliation,
-)
-from docket.memory import SupplierMemoryRecord, SupplierMemoryStore
-from docket.policy import PolicyDecision
-from docket.schema.procurement import (
-    ActingUser,
-    AMaterialDocumentEntry,
-    APurchaseOrder,
-    APurchaseOrderItem,
-    ASupplierInvoiceEntry,
-)
-from docket.schema.provenance import Provenance
+from docket.graph.skeleton import CaseKey
+from docket.memory import SupplierMemory, SupplierMemoryStore
 from docket.tools.injection import InjectionOverlay, load_public_overlays
-from docket.tools.odata import ToolCall
 
 RunMode = Literal["deterministic", "live"]
 RunStatus = Literal["awaiting_approval", "approved", "rejected"]
 
-# Every type the graph puts into `DocketGraphState`, named explicitly.
-#
-# LangGraph's checkpoint deserializer revives arbitrary types by module path.
-# Its default is permissive-with-a-warning and is documented to become strict,
-# which would break resume -- and resume is the human-approval path, so it is
-# not somewhere to discover a breaking change later. Listing the types is also
-# the better posture on its own terms: checkpoint revival is the one place in
-# this process where a serialized payload turns back into Python objects.
-_CHECKPOINT_TYPES = (
-    CaseKey,
-    Claim,
-    EvidenceHandle,
-    GraphRun,
-    Investigation,
-    Proposal,
-    Reconciliation,
-    PolicyDecision,
-    SupplierMemoryRecord,
-    ToolCall,
-    ActingUser,
-    AMaterialDocumentEntry,
-    APurchaseOrder,
-    APurchaseOrderItem,
-    ASupplierInvoiceEntry,
-    Provenance,
-)
+_MEMORY_SENTINEL = "memory"
 
-# One checkpointer and one memory store for the whole process, shared by every
-# compiled graph variant below, so a run started against one variant can still
-# be resumed and so approved writes accumulate in a single supplier namespace.
-_CHECKPOINTER = InMemorySaver(
-    serde=JsonPlusSerializer(allowed_msgpack_modules=_CHECKPOINT_TYPES)
-)
-_MEMORY_STORE = SupplierMemoryStore()
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _state_db_setting() -> str:
+    return os.environ.get(
+        "DOCKET_UI_STATE_DB", str(repo_root() / "data" / "runtime" / "docket-ui.sqlite")
+    )
+
+
+class _RunStore:
+    """Run records, in memory or in the shared SQLite file.
+
+    A cache in front of the table: every write goes through `save`, which
+    persists before returning, so the table is never behind what the API has
+    told a client.
+    """
+
+    def __init__(self, path: Path | None) -> None:
+        self._runs: dict[str, RunRecord] = {}
+        self._conn: sqlite3.Connection | None = None
+        if path is not None:
+            self._conn = sqlite3.connect(str(path), check_same_thread=False)
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS ui_runs "
+                "(run_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, record TEXT NOT NULL)"
+            )
+            self._conn.commit()
+            for (blob,) in self._conn.execute("SELECT record FROM ui_runs"):
+                record = _record_from_json(blob)
+                self._runs[record.run_id] = record
+
+    def save(self, record: RunRecord) -> None:
+        if self._conn is not None:
+            self._conn.execute(
+                "INSERT INTO ui_runs (run_id, created_at, record) VALUES (?, ?, ?) "
+                "ON CONFLICT(run_id) DO UPDATE SET record = excluded.record",
+                (record.run_id, record.created_at, _record_to_json(record)),
+            )
+            self._conn.commit()
+        self._runs[record.run_id] = record
+
+    def get(self, run_id: str) -> RunRecord | None:
+        return self._runs.get(run_id)
+
+    def all(self) -> list[RunRecord]:
+        return list(self._runs.values())
+
+
+def _open_state() -> tuple[Any, SupplierMemory, _RunStore, Path | None]:
+    setting = _state_db_setting()
+    if setting == _MEMORY_SENTINEL:
+        # Same allowlist as the durable path: checkpoint revival is the one
+        # place a serialized payload turns back into Python objects.
+        checkpointer = InMemorySaver(
+            serde=JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES)
+        )
+        return checkpointer, SupplierMemoryStore(), _RunStore(None), None
+    path = Path(setting)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    durable = open_durable_state(path)
+    return durable.checkpointer, durable.memory_store, _RunStore(path), path
+
 
 _GRAPHS: dict[tuple[RunMode, str], DocketLangGraph] = {}
-_RUNS: dict[str, RunRecord] = {}
 _LOCK = threading.Lock()
+
+
+def persistence() -> dict[str, Any]:
+    """What survives a restart, stated from the store actually in use."""
+    if _STATE_PATH is None:
+        return {
+            "durable": False,
+            "path": None,
+            "note": (
+                "Graph checkpoints, supplier memory and run records are in process memory "
+                "and are lost when the server stops (DOCKET_UI_STATE_DB=memory)."
+            ),
+        }
+    return {
+        "durable": True,
+        "path": str(_STATE_PATH),
+        "note": (
+            "Graph checkpoints, supplier memory with its audit trail, and run records are "
+            "stored together in one SQLite file, so a run awaiting approval survives a "
+            "restart. Run a single worker."
+        ),
+    }
 
 
 class UiError(RuntimeError):
@@ -126,7 +171,7 @@ class RunRecord:
     decision: dict[str, Any] | None = None
 
 
-def memory_store() -> SupplierMemoryStore:
+def memory_store() -> SupplierMemory:
     return _MEMORY_STORE
 
 
@@ -218,13 +263,18 @@ def _proposed_by_for(mode: RunMode, graph: DocketLangGraph) -> str:
 
 
 def register_run(record: RunRecord) -> None:
+    save_run(record)
+
+
+def save_run(record: RunRecord) -> None:
+    """Persist a new or changed run record. Call after every mutation."""
     with _LOCK:
-        _RUNS[record.run_id] = record
+        _RUN_STORE.save(record)
 
 
 def get_run(run_id: str) -> RunRecord:
     with _LOCK:
-        record = _RUNS.get(run_id)
+        record = _RUN_STORE.get(run_id)
     if record is None:
         raise UiError(f"unknown run {run_id!r}", status_code=404)
     return record
@@ -232,7 +282,7 @@ def get_run(run_id: str) -> RunRecord:
 
 def list_runs() -> list[RunRecord]:
     with _LOCK:
-        return sorted(_RUNS.values(), key=lambda record: record.created_at, reverse=True)
+        return sorted(_RUN_STORE.all(), key=lambda record: record.created_at, reverse=True)
 
 
 def new_run_id() -> str:
@@ -360,5 +410,19 @@ def find_case(purchase_order: str, purchase_order_item: str) -> CatalogueEntry:
     )
 
 
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+def _record_to_json(record: RunRecord) -> str:
+    return json.dumps(asdict(record), sort_keys=True)
+
+
+def _record_from_json(blob: str) -> RunRecord:
+    data = json.loads(blob)
+    data["case"] = CaseKey(**data["case"])
+    return RunRecord(**data)
+
+
+# One checkpointer, one memory store and one run store for the whole process,
+# shared by every compiled graph variant above, so a run started against one
+# variant can still be resumed and approved writes land in one namespace.
+# Opened last: reloading saved run records on a restart needs RunRecord and
+# its JSON reader, both defined above.
+_CHECKPOINTER, _MEMORY_STORE, _RUN_STORE, _STATE_PATH = _open_state()
