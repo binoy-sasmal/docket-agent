@@ -33,3 +33,47 @@ jobs:
 
       - name: Eval harness (Day 3 golden set; deterministic mode)
         run: python tools/run_eval.py
+
+  # Connected mode against the SAP CAP mock ERP (erp-mock/). Its own job, so the
+  # frozen gates above never depend on Node or on a running service. The mock
+  # is seeded from the frozen fixtures, and tests/test_erp_mock_equivalence.py
+  # checks all 300 cases decide identically in both modes and that the
+  # service refuses writes.
+  erp-mock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: erp-mock/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.lock.txt
+          npm ci --prefix erp-mock
+
+      - name: Generate seed data from the frozen fixtures
+        run: python tools/export_erp_mock_data.py
+
+      - name: Start the CAP service
+        run: |
+          (cd erp-mock && PORT=4004 npx cds-serve > ../cds.log 2>&1 &)
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:4004/odata/v4/procurement/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat cds.log
+          exit 1
+
+      - name: Equivalence and read-only tests
+        env:
+          DOCKET_ERP_URL: http://localhost:4004/odata/v4/procurement
+        run: pytest -m erp

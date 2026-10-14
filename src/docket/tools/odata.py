@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
 from docket.fixture_store import FixtureLookupError, FrozenFixtureStore
 from docket.schema.procurement import (
@@ -26,6 +26,37 @@ class ToolCall:
 
 class ToolAccessDenied(PermissionError):
     """Raised if code tries to record a non-allowlisted tool."""
+
+
+class ODataToolFacade(Protocol):
+    """The four read-only lookups the Investigator may use, and nothing else.
+
+    Two implementations: `ReadOnlyODataTools` over the frozen fixtures, which
+    the eval and the default graph use, and
+    `docket.tools.odata_http.HttpODataTools` over a live OData service, for
+    connected mode. The agent is typed against this protocol, so it cannot
+    reach for anything an implementation exposes beyond it.
+    """
+
+    @property
+    def tool_calls(self) -> tuple[ToolCall, ...]: ...
+
+    @property
+    def allowed_tool_names(self) -> frozenset[str]: ...
+
+    def get_A_PurchaseOrder(self, PurchaseOrder: str) -> APurchaseOrder: ...
+
+    def get_A_PurchaseOrderItem(
+        self, PurchaseOrder: str, PurchaseOrderItem: str
+    ) -> APurchaseOrderItem: ...
+
+    def list_A_MaterialDocumentItem(
+        self, PurchaseOrder: str, PurchaseOrderItem: str
+    ) -> tuple[AMaterialDocumentEntry, ...]: ...
+
+    def list_A_SupplierInvoiceItemPurOrdRef(
+        self, PurchaseOrder: str, PurchaseOrderItem: str
+    ) -> tuple[ASupplierInvoiceEntry, ...]: ...
 
 
 class ReadOnlyODataTools:

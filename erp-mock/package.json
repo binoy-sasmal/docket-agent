@@ -1,0 +1,26 @@
+{
+  "name": "docket-erp-mock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only SAP CAP service with Docket's OData entity shapes, seeded from the frozen fixtures. A test service for Docket's connected mode, not an ERP.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "cds-serve"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": ":memory:"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@cap-js/sqlite": "^3.1.2",
+    "@sap/cds": "^10.1.1"
+  }
+}

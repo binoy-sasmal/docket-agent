@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from typing import Any, NotRequired, TypedDict, cast
 
@@ -24,7 +25,7 @@ from docket.approval import (
 from docket.memory import SupplierMemory, SupplierMemoryRecord, SupplierMemoryStore
 from docket.policy import PolicyDecision
 from docket.tools.injection import InjectionOverlay
-from docket.tools.odata import ReadOnlyODataTools
+from docket.tools.odata import ODataToolFacade, ReadOnlyODataTools
 
 from .skeleton import (
     CaseKey,
@@ -62,9 +63,12 @@ class DocketLangGraph:
     memory_store: SupplierMemory
 
 
-def investigator_node(state: DocketGraphState) -> dict[str, Investigation]:
-    """Gather documents through the read-only OData tool facade."""
-    return {"investigation": investigator(state["case"], ReadOnlyODataTools())}
+def _investigator_node_for_tools(tools_factory: Callable[[], ODataToolFacade]) -> Any:
+    def investigator_node(state: DocketGraphState) -> dict[str, Investigation]:
+        """Gather documents through the read-only OData tool facade."""
+        return {"investigation": investigator(state["case"], tools_factory())}
+
+    return investigator_node
 
 
 def reconciler_node(state: DocketGraphState) -> dict[str, Reconciliation]:
@@ -92,11 +96,10 @@ def proposer_node(state: DocketGraphState) -> dict[str, Proposal | GraphRun]:
 
 
 def _investigator_node_for(
-    model: BaseChatModel, overlays: tuple[InjectionOverlay, ...] = ()
+    model: BaseChatModel, tools_factory: Callable[[], ODataToolFacade]
 ) -> Any:
     def investigator_node_with_model(state: DocketGraphState) -> dict[str, Investigation]:
-        tools = ReadOnlyODataTools(overlays=overlays)
-        return {"investigation": investigator_agent(state["case"], tools, model)}
+        return {"investigation": investigator_agent(state["case"], tools_factory(), model)}
 
     return investigator_node_with_model
 
@@ -171,6 +174,7 @@ def build_docket_graph(
     checkpointer: Any | None = None,
     model: BaseChatModel | None = None,
     overlays: tuple[InjectionOverlay, ...] = (),
+    tools_factory: Callable[[], ODataToolFacade] | None = None,
 ) -> DocketLangGraph:
     """Build the real LangGraph app with checkpointing enabled by default.
 
@@ -181,15 +185,31 @@ def build_docket_graph(
     docs/PROJECT.md 3.1. `overlays` only take effect on the model path: the
     deterministic nodes never read document free text, so there is nothing
     for an overlay to reach.
+
+    `tools_factory` swaps the frozen fixture tools for another read-only
+    implementation, e.g. `HttpODataTools` against a live OData service
+    (connected mode). It cannot be combined with `overlays`: overlays are an
+    eval instrument applied to in-memory fixture copies, and a connected run
+    is never an eval run.
     """
+    if tools_factory is not None and overlays:
+        raise ValueError(
+            "injection overlays apply only to the frozen fixture tools; "
+            "a connected (tools_factory) run cannot carry them"
+        )
+    if tools_factory is None:
+
+        def tools_factory() -> ODataToolFacade:
+            return ReadOnlyODataTools(overlays=overlays)
+
     supplier_memory = memory_store or SupplierMemoryStore()
     workflow = StateGraph(DocketGraphState)
     if model is None:
-        workflow.add_node("investigator", investigator_node)
+        workflow.add_node("investigator", _investigator_node_for_tools(tools_factory))
         workflow.add_node("reconciler", reconciler_node)
         workflow.add_node("proposer", proposer_node)
     else:
-        workflow.add_node("investigator", _investigator_node_for(model, overlays))
+        workflow.add_node("investigator", _investigator_node_for(model, tools_factory))
         workflow.add_node("reconciler", _reconciler_node_for(model))
         workflow.add_node("proposer", _proposer_node_for(model))
     workflow.add_node("policy_gate", policy_gate_node)

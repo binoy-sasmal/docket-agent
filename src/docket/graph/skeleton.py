@@ -24,7 +24,7 @@ from docket.schema.procurement import (
     APurchaseOrderItem,
     ASupplierInvoiceEntry,
 )
-from docket.tools.odata import ReadOnlyODataTools, ToolCall
+from docket.tools.odata import ODataToolFacade, ReadOnlyODataTools, ToolCall
 
 EvidenceKind = Literal["purchase_order_item", "material_document", "supplier_invoice"]
 
@@ -98,7 +98,7 @@ class GraphRun:
     proposal: Proposal
 
 
-def investigator(case: CaseKey, tools: ReadOnlyODataTools) -> Investigation:
+def investigator(case: CaseKey, tools: ODataToolFacade) -> Investigation:
     """Gather the documents required for a purchase-order item."""
     purchase_order = tools.get_A_PurchaseOrder(case.purchase_order)
     purchase_order_item = tools.get_A_PurchaseOrderItem(
@@ -259,7 +259,7 @@ def proposer(reconciliation: Reconciliation, policy: PolicyDecision) -> Proposal
     )
 
 
-def run_case(case: CaseKey, tools: ReadOnlyODataTools | None = None) -> GraphRun:
+def run_case(case: CaseKey, tools: ODataToolFacade | None = None) -> GraphRun:
     """Run the minimal four-node graph for one case."""
     tool_facade = tools or ReadOnlyODataTools()
     investigation = investigator(case, tool_facade)
@@ -316,7 +316,7 @@ class _EvidenceCollector:
     3.1), independent of what the model claims it did.
     """
 
-    tools: ReadOnlyODataTools
+    tools: ODataToolFacade
     case: CaseKey
     goods_receipts: tuple[AMaterialDocumentEntry, ...] = field(default_factory=tuple)
     invoices: tuple[ASupplierInvoiceEntry, ...] = field(default_factory=tuple)
@@ -380,7 +380,7 @@ def _without_reasoning(response: AIMessage) -> AIMessage:
 
 def investigator_agent(
     case: CaseKey,
-    tools: ReadOnlyODataTools,
+    tools: ODataToolFacade,
     model: BaseChatModel,
     *,
     max_tool_calls: int = MAX_INVESTIGATOR_TOOL_CALLS,

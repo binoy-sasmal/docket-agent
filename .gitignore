@@ -41,3 +41,7 @@ evals/runs/
 # Durable UI state (DOCKET_UI_STATE_DB default): checkpoints, supplier memory,
 # audit trail and run records. Working state of a local server, not a result.
 data/runtime/
+
+# CAP mock ERP seed data: generated from the frozen fixtures by
+# tools/export_erp_mock_data.py, never committed, so it cannot drift from them.
+erp-mock/db/data/
