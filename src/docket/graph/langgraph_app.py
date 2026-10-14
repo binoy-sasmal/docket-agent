@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any, NotRequired, TypedDict, cast
 
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -14,8 +15,13 @@ try:  # LangGraph 1.x name.
 except ImportError:  # pragma: no cover - compatibility with older LangGraph releases.
     from langgraph.checkpoint.memory import MemorySaver as InMemorySaver
 
-from docket.approval import ApprovalRecord, approval_request_for, record_approved_resolution
-from docket.memory import SupplierMemoryRecord, SupplierMemoryStore
+from docket.approval import (
+    ApprovalRecord,
+    approval_request_for,
+    record_approval_requested,
+    record_approved_resolution,
+)
+from docket.memory import SupplierMemory, SupplierMemoryRecord, SupplierMemoryStore
 from docket.policy import PolicyDecision
 from docket.tools.injection import InjectionOverlay
 from docket.tools.odata import ReadOnlyODataTools
@@ -53,7 +59,7 @@ class DocketLangGraph:
     """Compiled graph plus the memory store side effect it gates."""
 
     graph: Any
-    memory_store: SupplierMemoryStore
+    memory_store: SupplierMemory
 
 
 def investigator_node(state: DocketGraphState) -> dict[str, Investigation]:
@@ -136,16 +142,23 @@ def _coerce_approval(value: object) -> ApprovalRecord:
 
 
 def _approval_node_for(
-    memory_store: SupplierMemoryStore,
+    memory_store: SupplierMemory,
 ) -> Any:
-    def approval_node(state: DocketGraphState) -> dict[str, SupplierMemoryRecord]:
+    def approval_node(
+        state: DocketGraphState, config: RunnableConfig
+    ) -> dict[str, SupplierMemoryRecord]:
+        # Everything above interrupt() re-runs on every resume or replay, so
+        # the request audit is deduplicated and the write below is keyed.
         proposal = state["proposal"]
+        thread_id = str(config.get("configurable", {}).get("thread_id", "unthreaded"))
+        record_approval_requested(proposal, memory_store, thread_id=thread_id)
         approval = _coerce_approval(interrupt(asdict(approval_request_for(proposal))))
         return {
             "approval_record": record_approved_resolution(
                 proposal,
                 approval,
                 memory_store,
+                thread_id=thread_id,
             )
         }
 
@@ -154,7 +167,7 @@ def _approval_node_for(
 
 def build_docket_graph(
     *,
-    memory_store: SupplierMemoryStore | None = None,
+    memory_store: SupplierMemory | None = None,
     checkpointer: Any | None = None,
     model: BaseChatModel | None = None,
     overlays: tuple[InjectionOverlay, ...] = (),
