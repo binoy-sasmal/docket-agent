@@ -117,6 +117,14 @@ Long-term store, namespaced by supplier, in three kinds:
 a human approves a resolution.* This prevents a wrong call in case 4 from poisoning
 case 40. Short-term state uses the LangGraph checkpointer, scoped per thread.
 
+> **Amended 2026-10-14.** Storage now matters too, because an approval
+> workflow that loses a paused case on restart is not one. `docket.durable`
+> puts checkpoints, supplier memory and an append-only audit trail in one
+> SQLite file, and the approved write is idempotent per (thread, proposal
+> hash) so a replayed resume cannot write twice. The write policy above is
+> unchanged; this only makes it survive a restart. The frozen eval still runs
+> on the in-memory store. See the README, "Durable approval".
+
 ### 3.3 Guardrails
 
 - Per-node tool allowlists (see matrix above)

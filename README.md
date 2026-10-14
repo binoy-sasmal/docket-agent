@@ -98,6 +98,31 @@ Full derivation record -- reconnaissance findings, exclusions, the schema,
 and every modelling assumption -- is in
 [docs/DERIVATION.md](docs/DERIVATION.md).
 
+### Durable approval
+
+`docket.durable.build_durable_docket_graph(path)` builds the same graph with
+every piece of workflow state in one SQLite file: LangGraph's checkpoints,
+supplier memory, and an audit trail. The frozen eval and the default graph
+are untouched and still run entirely in memory. Three properties, each
+proven in `tests/test_durable_workflow.py`:
+
+- **Restart-safe.** A case paused at the approval `interrupt()` is resumed by
+  a *different process* after the first has exited. The test runs the two
+  halves as separate Python processes, so nothing in memory is shared.
+- **Exactly-once write.** LangGraph re-executes a node from its start on
+  resume, so a process that dies after the memory write but before the node
+  is checkpointed would write again. The write is keyed on the thread and a
+  content hash of the proposal, and commits in one transaction with its
+  audit events. The test replays the approval from the paused checkpoint and
+  gets the original record back, with one `memory_written` event and a
+  `duplicate_approval_ignored` event recording that the replay was refused.
+- **Append-only audit.** Every request, grant and rejection is recorded with
+  the approver, the reason and the proposal's content hash, so an approval
+  is tied to the evidence it was shown. Database triggers reject any
+  `UPDATE` or `DELETE` on the audit and memory tables, and a test checks it.
+  A rejected approval, including a segregation-of-duties failure, is audited
+  and writes nothing.
+
 ## Known limits
 
 Volunteering these is what makes the rest of the claims worth reading
@@ -173,8 +198,15 @@ they are the boundary of what this project demonstrates.
   exist -- added after the original scope cut -- is a human-approval gate
   (`interrupt()`) and a web view for exercising it; approving records a note
   to supplier memory and nothing else.
-- **Graph checkpoints and supplier memory are process-local.** They die with
-  the server, and the UI says so. Nothing here is a persistence design.
+- **Durable approval is a library capability, not yet the UI's.**
+  `build_durable_docket_graph` keeps checkpoints, supplier memory and the
+  audit trail in one SQLite file (see "Durable approval" above). The web UI
+  still builds the process-local graph, so its runs die with the server and
+  it says so. Single node only: SQLite was chosen because the property under
+  test is restart safety, not concurrent approvers on several machines.
+  *(This bullet read "Graph checkpoints and supplier memory are
+  process-local ... Nothing here is a persistence design" until 2026-10-14.
+  Corrected rather than left standing.)*
 
 **Deliberate non-goals**
 
