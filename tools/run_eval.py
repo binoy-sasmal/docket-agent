@@ -118,6 +118,15 @@ def main() -> int:
             "unauthored placeholder."
         ),
     )
+    parser.add_argument(
+        "--ops-out",
+        metavar="PATH",
+        help=(
+            "Write one JSONL record per case-run with its outcome and operational trace "
+            "(node timings, model calls, tokens, tool calls; never content). Summarise "
+            "with tools/ops_report.py; compare two runs with tools/compare_runs.py."
+        ),
+    )
     args = parser.parse_args()
 
     if args.held_out and not args.model:
@@ -132,7 +141,10 @@ def main() -> int:
     resume_path = Path(args.resume) if args.resume else None
     try:
         report = run_eval(
-            model=model, include_held_out=args.held_out, resume_path=resume_path
+            model=model,
+            include_held_out=args.held_out,
+            resume_path=resume_path,
+            ops_path=Path(args.ops_out) if args.ops_out else None,
         )
     except Exception:
         if resume_path is not None:

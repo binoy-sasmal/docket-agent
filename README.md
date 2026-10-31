@@ -207,7 +207,54 @@ duplicated purchase-order header with two different dates and an
 amount-formatting dependence, both recorded in `erp-mock/README.md` and the
 limits below. The fixtures were not changed.
 
+### Operations (AgentOps)
+
+`docket.ops` records what each run cost and where its time went, without
+recording what it read or wrote. A LangChain callback handler, attached
+through `register_configure_hook` (the mechanism LangChain's own tracers
+use), captures every node, model call and model-requested tool call: names,
+timings, token counts, statuses and exception type names. Never prompts,
+notes, tool arguments or answers, because document text is untrusted input
+and a trace has a wider audience than the approver. A test asserts that an
+injection payload never reaches the trace.
+
+```
+python tools/run_eval.py --ops-out evals/runs/ops.jsonl       # outcome + trace per case-run
+python tools/ops_report.py evals/runs/ops.jsonl                # p50/p95 latency, tokens, calls by node
+python tools/compare_runs.py ops-A.jsonl ops-B.jsonl           # release gate, exit 1 on regression
+python tools/replay_case.py 4507000477_00060 [--model]         # one case, step by step
+```
+
+- **Report.** Per-case latency percentiles, model calls and tokens per
+  case-run, the most tool calls any case made, errors, p95 time per node and
+  model calls by node. Cost is estimated only from prices you pass
+  (`--price-in/--price-out`, USD per million tokens); none are assumed.
+- **Release gate.** `compare_runs.py` diffs two runs case by case, for
+  example the current model against a candidate (`GROQ_MODEL=...`), and fails
+  on any disposition or trajectory that turned incorrect, an injection that
+  newly succeeds, a case-run missing from the candidate, mean tokens up more
+  than 25% or p95 latency up more than 50%, or a case over the Investigator's
+  step budget.
+- **Replay.** `replay_case.py` re-runs one golden case and prints its
+  timeline: each node, each model call with tokens, each tool call, then the
+  outcome against the label.
+- **The architecture, observed at run time.** Both the eval path and the
+  LangGraph path are traced, and the tests assert that the policy gate makes
+  zero model calls; the report prints that count. `interrupt()` is recorded as
+  a pause awaiting a human, not as a failure.
+
+Measured so far: the deterministic run (30 case-runs, no model, on a
+laptop) has a p95 of about 94 ms per case-run, almost all of it fixture
+loading before the first node. No live-model ops run or two-model comparison
+has been made yet, so there are no token, cost or latency figures for the
+model path.
+
 ## Known limits
+
+- **Operations data is local and offline.** `docket.ops` writes JSONL for
+  eval runs and replays; it does not export OpenTelemetry, runs no
+  dashboard, and has never observed a deployed service. No live-model ops
+  run or model comparison has been recorded yet.
 
 Volunteering these is what makes the rest of the claims worth reading
 (docs/PROJECT.md section 8). None of them is a defect to be fixed later;

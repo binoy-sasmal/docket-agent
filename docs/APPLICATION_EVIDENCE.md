@@ -20,6 +20,8 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Note hypotheses: a model extracts at most one claim of four fixed kinds from untrusted note
   text, code checks it against the documents, and the approver sees a fixed UNVERIFIED template.
   Labels frozen before the feature existed.
+- AgentOps: content-free run tracing (nodes, model calls, tokens, tool calls, errors), an
+  operations report, a case-by-case release gate between two runs, and a single-case replay.
 
 ## Evidence map
 
@@ -32,6 +34,7 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 | Note hypotheses: design, frozen labels, live result and caveats | `README.md` "Note hypotheses"; `src/docket/hypothesis.py`; `evals/notes/` (labels, FROZEN.md, manifest); `tools/run_note_eval.py`; `tests/test_note_hypothesis.py`; `evals/draft/held_out_note_brief.md` |
 | Connected mode and the CAP mock ERP | `README.md` "Connected mode"; `erp-mock/` (CDS model and service, README); `src/docket/tools/odata_http.py`; `tests/test_erp_mock_equivalence.py`; `tests/test_odata_http.py`; `.github/workflows/ci.yml` job `erp-mock` |
 | Durable approval: restart safety, idempotency, audit trail | `README.md` "Durable approval"; `src/docket/durable.py`; `src/docket/approval.py`; `tests/test_durable_workflow.py`; the web UI's restart test `tests/test_ui_durable.py` (needs the `ui` extra, so it is skipped in CI) |
+| AgentOps: tracing, report, release gate, replay | `README.md` "Operations (AgentOps)"; `src/docket/ops.py`; `tests/test_ops.py`; `tools/ops_report.py`; `tools/compare_runs.py`; `tools/replay_case.py`; `--ops-out` in `tools/run_eval.py` |
 | Golden-set provenance | `evals/golden/FROZEN.md` |
 | UI scope and limitations | `ui/README.md` |
 
@@ -49,6 +52,9 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
   the agent decides identically on all 300 cases in both modes". The service is a mock seeded from
   the fixtures.
 - Pair every evaluation result with its denominator and the limitations in `README.md`.
+- AgentOps: "added content-free tracing of every node, model call and tool call, an operations
+  report, and a release gate that compares two runs case by case and fails on outcome, token,
+  latency or step-budget regressions". Tested offline and run end to end in deterministic mode.
 - Durable approval: "restart-safe, exactly-once human approval with an append-only audit trail,
   proven across separate processes", in the library and in the web UI. SQLite, single node, one
   UI worker.
@@ -62,6 +68,9 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Distributed or multi-node durability, concurrent approvers across machines, or Postgres-backed
   persistence.
 - Event streaming or Kafka; none exists in this system.
+- Token, cost or latency figures for the model path, or a completed model-version comparison:
+  no live-model ops run has been recorded. OpenTelemetry export, dashboards or production
+  monitoring for Docket: the ops data is local JSONL.
 - Note-hypothesis results as independent or as a robustness rate: one run, public cases by the
   feature's author, held-out cases not yet authored.
 - That approvers never see note text: the UI shows raw notes in a labelled untrusted panel by

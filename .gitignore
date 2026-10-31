@@ -45,3 +45,4 @@ data/runtime/
 # CAP mock ERP seed data: generated from the frozen fixtures by
 # tools/export_erp_mock_data.py, never committed, so it cannot drift from them.
 erp-mock/db/data/
+notes

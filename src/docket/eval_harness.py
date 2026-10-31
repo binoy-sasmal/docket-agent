@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -47,6 +48,7 @@ from typing import Any, Literal
 
 from langchain_core.language_models import BaseChatModel
 
+from docket import ops
 from docket.graph.skeleton import (
     CaseKey,
     Investigation,
@@ -224,20 +226,69 @@ def _run_case(
     Investigator's tool-calling loop.
     """
     tools = ReadOnlyODataTools(overlays=overlays)
+    # ops.node() marks node boundaries for docket.ops; it is a no-op unless a
+    # recorder is active, and records timings only, never content.
     if model is None:
-        investigation = investigator(case, tools)
-        reconciliation = reconciler(investigation)
-        policy = policy_gate(reconciliation)
-        proposal = proposer(reconciliation, policy)
+        with ops.node("investigator"):
+            investigation = investigator(case, tools)
+        with ops.node("reconciler"):
+            reconciliation = reconciler(investigation)
+        with ops.node("policy_gate"):
+            policy = policy_gate(reconciliation)
+        with ops.node("proposer"):
+            proposal = proposer(reconciliation, policy)
         return investigation, proposal
 
-    investigation = investigator_agent(case, tools, model)
-    reconciliation = reconciler(investigation)
-    reconciliation = replace(reconciliation, narrative=reconciler_narrative(reconciliation, model))
-    policy = policy_gate(reconciliation)
-    proposal = proposer(reconciliation, policy)
-    proposal = replace(proposal, summary=proposer_justification(reconciliation, policy, model))
+    with ops.node("investigator"):
+        investigation = investigator_agent(case, tools, model)
+    with ops.node("reconciler"):
+        reconciliation = reconciler(investigation)
+        reconciliation = replace(
+            reconciliation, narrative=reconciler_narrative(reconciliation, model)
+        )
+    with ops.node("policy_gate"):
+        policy = policy_gate(reconciliation)
+    with ops.node("proposer"):
+        proposal = proposer(reconciliation, policy)
+        proposal = replace(proposal, summary=proposer_justification(reconciliation, policy, model))
     return investigation, proposal
+
+
+def _recording(enabled: bool) -> AbstractContextManager[ops.RunRecorder | None]:
+    return ops.record_run() if enabled else nullcontext()
+
+
+def _ops_record(
+    case_id: str,
+    run: str,
+    *,
+    overlay_kind: str | None,
+    model_name: str,
+    outcome: dict[str, Any],
+    recorder: ops.RunRecorder | None,
+    tool_trajectory: tuple[str, ...] | None,
+) -> dict[str, Any]:
+    """One JSONL line per case-run. `ops` is None for a run reused from a
+    resume file: it was not re-executed, so there is nothing to time."""
+    trace = recorder.finish() if recorder is not None else None
+    return {
+        "case_id": case_id,
+        "run": run,
+        "overlay_kind": overlay_kind,
+        "model": model_name,
+        "agent": agent_fingerprint(),
+        "outcome": outcome,
+        "tool_trajectory": list(tool_trajectory) if tool_trajectory is not None else None,
+        "ops": trace.summary() if trace is not None else None,
+        "steps": trace.to_dict()["steps"] if trace is not None else None,
+    }
+
+
+def write_ops_records(path: Path, records: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 class ResumeConflict(RuntimeError):
@@ -413,6 +464,7 @@ def run_eval(
     model: BaseChatModel | None = None,
     include_held_out: bool = False,
     resume_path: Path | None = None,
+    ops_path: Path | None = None,
 ) -> EvalReport:
     """Run every golden case once (deterministic) or through a real model.
 
@@ -432,6 +484,11 @@ def run_eval(
     smaller than one full run. See `ResumeStore` for the integrity guards;
     the short version is that it is write-once, refuses to merge results from
     different models, and records which dates the measurements come from.
+
+    `ops_path` writes one JSONL record per case-run with its outcome and its
+    operational trace from `docket.ops`: node timings, model calls, tokens,
+    tool calls and errors, never content. `tools/ops_report.py` summarises a
+    file and `tools/compare_runs.py` compares two (e.g. two model versions).
     """
     if include_held_out and model is None:
         raise ValueError(
@@ -453,6 +510,8 @@ def run_eval(
     )
 
     results: list[CaseResult] = []
+    ops_records: list[dict[str, Any]] = []
+    model_name = _model_name(model)
     injection_outcomes: list[bool] = []
     outcomes_by_kind: dict[OverlayKind, list[bool]] = {"public": [], "held_out": []}
 
@@ -471,8 +530,12 @@ def run_eval(
                 actual_reason = str(cached["reason"])
                 trajectory_correct = bool(cached["trajectory_correct"])
                 gaps = tuple(str(g) for g in cached["trajectory_gaps"])
+                clean_recorder: ops.RunRecorder | None = None
+                clean_tools: tuple[str, ...] | None = None
             else:
-                investigation, proposal = _run_case(case, model, ())
+                with _recording(ops_path is not None) as clean_recorder:
+                    investigation, proposal = _run_case(case, model, ())
+                clean_tools = tuple(call.name for call in investigation.tool_calls)
                 trajectory_correct, gaps = _check_trajectory(label, investigation)
                 actual_disposition = proposal.disposition
                 actual_reason = proposal.policy.reason
@@ -487,6 +550,23 @@ def run_eval(
                         },
                     )
             disposition_correct = actual_disposition == label["expected_disposition"]
+            if ops_path is not None:
+                ops_records.append(
+                    _ops_record(
+                        case_id,
+                        "clean",
+                        overlay_kind=None,
+                        model_name=model_name,
+                        outcome={
+                            "disposition_correct": disposition_correct,
+                            "trajectory_correct": trajectory_correct,
+                            "expected_disposition": label["expected_disposition"],
+                            "actual_disposition": actual_disposition,
+                        },
+                        recorder=clean_recorder,
+                        tool_trajectory=clean_tools,
+                    )
+                )
 
             # --- the overlaid run: a second, separately cacheable unit ------
             injection_succeeded: bool | None = None
@@ -494,13 +574,17 @@ def run_eval(
             if overlay is not None:
                 overlay_key = ResumeStore.key(case_id, overlay.overlay_id)
                 cached_overlay = store.get(overlay_key) if store is not None else None
+                overlay_recorder: ops.RunRecorder | None = None
+                overlay_tools: tuple[str, ...] | None = None
                 if cached_overlay is not None:
                     injection_succeeded = bool(cached_overlay["injection_succeeded"])
                     citation_gaps = tuple(str(g) for g in cached_overlay["citation_gaps"])
                 else:
-                    overlaid_investigation, overlaid_proposal = _run_case(
-                        case, model, (overlay,)
-                    )
+                    with _recording(ops_path is not None) as overlay_recorder:
+                        overlaid_investigation, overlaid_proposal = _run_case(
+                            case, model, (overlay,)
+                        )
+                    overlay_tools = tuple(c.name for c in overlaid_investigation.tool_calls)
                     overlaid_trajectory_correct, _ = _check_trajectory(
                         label, overlaid_investigation
                     )
@@ -523,6 +607,18 @@ def run_eval(
                                 "citation_gaps": list(citation_gaps),
                             },
                         )
+                if ops_path is not None:
+                    ops_records.append(
+                        _ops_record(
+                            case_id,
+                            overlay.overlay_id,
+                            overlay_kind=overlay_kind,
+                            model_name=model_name,
+                            outcome={"injection_succeeded": injection_succeeded},
+                            recorder=overlay_recorder,
+                            tool_trajectory=overlay_tools,
+                        )
+                    )
                 injection_outcomes.append(injection_succeeded)
                 if overlay_kind is not None:
                     outcomes_by_kind[overlay_kind].append(injection_succeeded)
@@ -549,10 +645,14 @@ def run_eval(
         # 25 completed cases would make resuming pointless.
         if store is not None:
             store.save()
+        if ops_path is not None:
+            write_ops_records(ops_path, ops_records)
         raise
 
     if store is not None:
         store.save()
+    if ops_path is not None:
+        write_ops_records(ops_path, ops_records)
 
     disposition_accuracy = sum(r.disposition_correct for r in results) / len(results)
     trajectory_accuracy = sum(r.trajectory_correct for r in results) / len(results)
