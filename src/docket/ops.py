@@ -62,6 +62,8 @@ class Step:
     model: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    """Input tokens the provider served from its prompt cache (a subset of input_tokens)."""
 
 
 @dataclass(frozen=True)
@@ -89,6 +91,10 @@ class RunTrace:
         return sum(s.output_tokens or 0 for s in self.of_kind("llm"))
 
     @property
+    def cached_input_tokens(self) -> int:
+        return sum(s.cached_input_tokens or 0 for s in self.of_kind("llm"))
+
+    @property
     def errors(self) -> list[Step]:
         return [s for s in self.steps if s.status == "error"]
 
@@ -105,6 +111,15 @@ class RunTrace:
             out[key] = out.get(key, 0) + 1
         return out
 
+    def tokens_by_node(self) -> dict[str, dict[str, int]]:
+        """Input and cached-input tokens per node: where the prompt cache pays off."""
+        out: dict[str, dict[str, int]] = {}
+        for step in self.of_kind("llm"):
+            entry = out.setdefault(step.node or "(outside a node)", {"input": 0, "cached": 0})
+            entry["input"] += step.input_tokens or 0
+            entry["cached"] += step.cached_input_tokens or 0
+        return out
+
     def summary(self) -> dict[str, Any]:
         """Flat, JSON-ready metrics for one run."""
         return {
@@ -112,10 +127,12 @@ class RunTrace:
             "llm_calls": self.llm_calls,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "cached_input_tokens": self.cached_input_tokens,
             "tool_calls": self.tool_calls,
             "errors": len(self.errors),
             "node_ms": {k: round(v, 2) for k, v in self.node_ms().items()},
             "llm_calls_by_node": self.llm_calls_by_node(),
+            "tokens_by_node": self.tokens_by_node(),
             "models": sorted({s.model for s in self.of_kind("llm") if s.model}),
         }
 
@@ -177,6 +194,7 @@ class RunRecorder(BaseCallbackHandler):
         error: BaseException | None = None,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
+        cached_input_tokens: int | None = None,
     ) -> None:
         with self._lock:
             opened = self._open.pop(run_id, None)
@@ -195,6 +213,7 @@ class RunRecorder(BaseCallbackHandler):
                     model=opened.model,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
+                    cached_input_tokens=cached_input_tokens,
                 )
             )
 
@@ -266,8 +285,13 @@ class RunRecorder(BaseCallbackHandler):
         self._start(run_id, parent_run_id, "llm", "chat", model=str(model) if model else None)
 
     def on_llm_end(self, response: LLMResult, *, run_id: UUID, **kwargs: Any) -> None:
-        input_tokens, output_tokens = _usage(response)
-        self._finish(run_id, input_tokens=input_tokens, output_tokens=output_tokens)
+        input_tokens, output_tokens, cached = _usage(response)
+        self._finish(
+            run_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_input_tokens=cached,
+        )
 
     def on_llm_error(self, error: BaseException, *, run_id: UUID, **kwargs: Any) -> None:
         self._finish(run_id, error=error)
@@ -299,16 +323,29 @@ class RunRecorder(BaseCallbackHandler):
             return RunTrace(steps=tuple(steps), wall_ms=self._ms(self._finished_at))
 
 
-def _usage(response: LLMResult) -> tuple[int | None, int | None]:
+def _usage(response: LLMResult) -> tuple[int | None, int | None, int | None]:
+    """(input, output, cached input) tokens. Cached input comes from LangChain's
+    `input_token_details.cache_read`, which langchain-groq fills from the
+    OpenAI-compatible `prompt_tokens_details.cached_tokens`."""
     for generations in response.generations:
         for generation in generations:
             usage = getattr(getattr(generation, "message", None), "usage_metadata", None)
             if usage:
-                return usage.get("input_tokens"), usage.get("output_tokens")
+                details = usage.get("input_token_details") or {}
+                return (
+                    usage.get("input_tokens"),
+                    usage.get("output_tokens"),
+                    details.get("cache_read"),
+                )
     token_usage = (response.llm_output or {}).get("token_usage") or {}
     if token_usage:
-        return token_usage.get("prompt_tokens"), token_usage.get("completion_tokens")
-    return None, None
+        details = token_usage.get("prompt_tokens_details") or {}
+        return (
+            token_usage.get("prompt_tokens"),
+            token_usage.get("completion_tokens"),
+            details.get("cached_tokens"),
+        )
+    return None, None, None
 
 
 @contextmanager
@@ -352,10 +389,20 @@ class Prices:
 
     input_per_million: float
     output_per_million: float
+    cached_input_per_million: float | None = None
+    """Price of a cached input token. None charges cached input at the full input rate."""
 
-    def cost(self, input_tokens: int, output_tokens: int) -> float:
+    def cost(self, input_tokens: int, output_tokens: int, cached_input_tokens: int = 0) -> float:
+        cached = min(cached_input_tokens, input_tokens)
+        cached_rate = (
+            self.input_per_million
+            if self.cached_input_per_million is None
+            else self.cached_input_per_million
+        )
         return (
-            input_tokens * self.input_per_million + output_tokens * self.output_per_million
+            (input_tokens - cached) * self.input_per_million
+            + cached * cached_rate
+            + output_tokens * self.output_per_million
         ) / 1_000_000
 
 
@@ -374,6 +421,9 @@ class OpsSummary:
     node_ms_p95: dict[str, float] = field(default_factory=dict)
     llm_calls_by_node: dict[str, int] = field(default_factory=dict)
     estimated_cost_usd: float | None = None
+    cache_hit_rate: float | None = None
+    """Share of all input tokens served from the provider's prompt cache."""
+    cache_hit_rate_by_node: dict[str, float] = field(default_factory=dict)
 
 
 def summarize(records: Sequence[Mapping[str, Any]], prices: Prices | None = None) -> OpsSummary:
@@ -390,7 +440,21 @@ def summarize(records: Sequence[Mapping[str, Any]], prices: Prices | None = None
             by_node[name] = by_node.get(name, 0) + n
     cost = None
     if prices is not None:
-        cost = round(sum(prices.cost(m["input_tokens"], m["output_tokens"]) for m in measured), 6)
+        cost = round(
+            sum(
+                prices.cost(m["input_tokens"], m["output_tokens"], m.get("cached_input_tokens", 0))
+                for m in measured
+            ),
+            6,
+        )
+    node_tokens: dict[str, list[int]] = {}
+    for m in measured:
+        for name, counts in (m.get("tokens_by_node") or {}).items():
+            acc = node_tokens.setdefault(name, [0, 0])
+            acc[0] += counts["input"]
+            acc[1] += counts["cached"]
+    total_input = sum(m["input_tokens"] for m in measured)
+    total_cached = sum(m.get("cached_input_tokens", 0) for m in measured)
     return OpsSummary(
         case_runs=len(records),
         measured=len(measured),
@@ -407,6 +471,10 @@ def summarize(records: Sequence[Mapping[str, Any]], prices: Prices | None = None
         node_ms_p95={k: percentile(v, 95) or 0.0 for k, v in sorted(node_samples.items())},
         llm_calls_by_node=dict(sorted(by_node.items())),
         estimated_cost_usd=cost,
+        cache_hit_rate=(total_cached / total_input) if total_input else None,
+        cache_hit_rate_by_node={
+            name: cached / total for name, (total, cached) in sorted(node_tokens.items()) if total
+        },
     )
 
 
@@ -459,6 +527,7 @@ def compare_runs(
     max_token_increase: float = 0.25,
     max_latency_increase: float = 0.5,
     max_tool_calls: int | None = None,
+    max_cache_hit_drop: float = 0.2,
 ) -> Comparison:
     """Gate a candidate run against a baseline.
 
@@ -466,7 +535,10 @@ def compare_runs(
     disposition or trajectory turning incorrect, an injection newly
     succeeding), a case-run missing from the candidate, a mean-token or p95
     latency increase beyond the given fraction, or a tool-call count over the
-    step budget. Cost and latency only gate when both sides were measured.
+    step budget, or a prompt-cache hit rate falling by more than
+    `max_cache_hit_drop` (absolute, e.g. 0.2 = 20 points), which is how a
+    prompt edit that moves variable content ahead of the static prefix shows
+    up. Cost, latency and cache only gate when both sides were measured.
     """
     base_by_key = {_key(r): r for r in baseline}
     cand_by_key = {_key(r): r for r in candidate}
@@ -497,6 +569,16 @@ def compare_runs(
             f"p95 case-run latency rose {latency_rise:.0%} "
             f"({base_summary.wall_ms_p95:.0f} ms -> {cand_summary.wall_ms_p95:.0f} ms), "
             f"limit {max_latency_increase:.0%}"
+        )
+    base_hits, cand_hits = base_summary.cache_hit_rate, cand_summary.cache_hit_rate
+    if (
+        base_hits is not None
+        and cand_hits is not None
+        and base_hits - cand_hits > max_cache_hit_drop
+    ):
+        regressions.append(
+            f"prompt-cache hit rate fell {base_hits - cand_hits:.0%} points "
+            f"({base_hits:.0%} -> {cand_hits:.0%}), limit {max_cache_hit_drop:.0%}"
         )
     if (
         max_tool_calls is not None

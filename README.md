@@ -226,15 +226,17 @@ python tools/replay_case.py 4507000477_00060 [--model]         # one case, step 
 ```
 
 - **Report.** Per-case latency percentiles, model calls and tokens per
-  case-run, the most tool calls any case made, errors, p95 time per node and
-  model calls by node. Cost is estimated only from prices you pass
+  case-run, the most tool calls any case made, errors, p95 time per node,
+  model calls by node, and the provider prompt-cache hit rate (cached input
+  tokens, from Groq's `prompt_tokens_details.cached_tokens`). Cost is estimated only from prices you pass
   (`--price-in/--price-out`, USD per million tokens); none are assumed.
 - **Release gate.** `compare_runs.py` diffs two runs case by case, for
   example the current model against a candidate (`GROQ_MODEL=...`), and fails
   on any disposition or trajectory that turned incorrect, an injection that
   newly succeeds, a case-run missing from the candidate, mean tokens up more
-  than 25% or p95 latency up more than 50%, or a case over the Investigator's
-  step budget.
+  than 25%, p95 latency up more than 50%, the prompt-cache hit rate down more
+  than 20 points (a prompt edit that moved variable content ahead of the
+  static prefix), or a case over the Investigator's step budget.
 - **Replay.** `replay_case.py` re-runs one golden case and prints its
   timeline: each node, each model call with tokens, each tool call, then the
   outcome against the label.
@@ -242,6 +244,36 @@ python tools/replay_case.py 4507000477_00060 [--model]         # one case, step 
   LangGraph path are traced, and the tests assert that the policy gate makes
   zero model calls; the report prints that count. `interrupt()` is recorded as
   a pause awaiting a human, not as a failure.
+
+#### Prompt-cache experiment (set up, not yet run)
+
+Groq caches exact prompt prefixes for `gpt-oss-120b` and reports the cached
+part as `prompt_tokens_details.cached_tokens`; the tracer records it per node.
+The Reconciler and Proposer calls read the same claims but open with
+different system prompts, so they share no cacheable prefix. The
+`shared_prefix` layout (`DOCKET_PROMPT_LAYOUT=shared_prefix`,
+`docket.graph.skeleton.PROMPT_LAYOUTS`) gives both calls one system prompt
+followed by the claims and moves each task's instructions to the last
+message, keeping their wording; `tests/test_prompt_layout.py` checks the prefix
+is identical and that no rule was dropped. The Investigator, where untrusted
+text enters, is unchanged. A non-default layout changes the agent fingerprint,
+so its results are never merged with the default's.
+
+```
+python tools/run_eval.py --model --resume evals/runs/A.json --ops-out evals/runs/ops-A.jsonl
+DOCKET_PROMPT_LAYOUT=shared_prefix python tools/run_eval.py --model \
+    --resume evals/runs/B.json --ops-out evals/runs/ops-B.jsonl
+python tools/compare_runs.py evals/runs/ops-A.jsonl evals/runs/ops-B.jsonl
+python tools/ops_report.py evals/runs/ops-B.jsonl --price-in <in> --price-out <out> --price-cached <cached>
+```
+
+The candidate passes only if every disposition, trajectory and injection
+outcome holds, tokens and latency stay within limits, and the cache hit rate
+does not fall. Caching is best-effort on the provider side, and the minimum
+cacheable prefix is model-dependent (128 to 1,024 tokens per Groq's docs), so
+small cases may show no hits at all: report whatever the run shows. Adding
+`--held-out` re-runs the held-out attacks against a changed agent; the agent
+was not tuned against them, but say that they had been run once before.
 
 Measured so far: the deterministic run (30 case-runs, no model, on a
 laptop) has a p95 of about 94 ms per case-run, almost all of it fixture

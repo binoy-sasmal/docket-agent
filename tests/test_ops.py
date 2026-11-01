@@ -170,7 +170,9 @@ def test_deterministic_eval_writes_one_ops_record_per_case(tmp_path) -> None:
 # ------------------------------------------------------------ aggregation
 
 
-def _record(case: str, *, ok: bool = True, tokens: int = 100, ms: float = 10.0) -> dict:
+def _record(
+    case: str, *, ok: bool = True, tokens: int = 100, ms: float = 10.0, cached: int = 0
+) -> dict:
     return {
         "case_id": case,
         "run": "clean",
@@ -181,6 +183,7 @@ def _record(case: str, *, ok: bool = True, tokens: int = 100, ms: float = 10.0) 
             "llm_calls": 3,
             "input_tokens": tokens,
             "output_tokens": 0,
+            "cached_input_tokens": cached,
             "tool_calls": 2,
             "errors": 0,
             "node_ms": {"investigator": ms},
@@ -231,3 +234,49 @@ def test_release_gate_flags_cost_latency_and_step_budget() -> None:
     assert "mean tokens per case-run rose 100%" in joined
     assert "p95 case-run latency rose 200%" in joined
     assert "over the step budget of 1" in joined
+
+
+# ------------------------------------------------------------ prompt cache
+
+
+def test_provider_prompt_cache_reads_are_recorded() -> None:
+    usage = {**USAGE, "input_token_details": {"cache_read": 64}}
+    model = ScriptedChat(script=[AIMessage(content="ok", usage_metadata=usage)])  # type: ignore[call-arg]
+    with ops.record_run() as recorder:
+        model.invoke("q")
+    trace = recorder.finish()
+    assert trace.cached_input_tokens == 64
+    assert trace.summary()["cached_input_tokens"] == 64
+
+
+def test_cache_hit_rate_and_cached_pricing() -> None:
+    records = [_record("a", tokens=1_000_000, cached=500_000)]
+    summary = ops.summarize(records, ops.Prices(2.0, 8.0, cached_input_per_million=1.0))
+    assert summary.cache_hit_rate == 0.5
+    assert summary.estimated_cost_usd == 1.5  # 0.5M at $2 + 0.5M cached at $1
+    # Without a cached price, cached input is charged at the full input rate.
+    assert ops.summarize(records, ops.Prices(2.0, 8.0)).estimated_cost_usd == 2.0
+
+
+def test_release_gate_flags_a_prompt_cache_hit_rate_drop() -> None:
+    baseline = [_record("a", tokens=1000, cached=800)]
+    candidate = [_record("a", tokens=1000, cached=200)]
+    joined = " | ".join(ops.compare_runs(baseline, candidate).regressions)
+    assert "prompt-cache hit rate fell 60% points (80% -> 20%)" in joined
+    assert ops.compare_runs(baseline, baseline).passed
+
+
+def test_cache_hit_rate_is_reported_per_node() -> None:
+    record = _record("a", tokens=1000, cached=400)
+    record["ops"]["tokens_by_node"] = {
+        "reconciler": {"input": 400, "cached": 0},
+        "proposer": {"input": 600, "cached": 400},
+    }
+    rates = ops.summarize([record]).cache_hit_rate_by_node
+    assert rates == {"proposer": 400 / 600, "reconciler": 0.0}
+
+
+def test_records_without_cache_fields_still_summarise() -> None:
+    record = _record("a")
+    del record["ops"]["cached_input_tokens"]  # files written before cache tracking
+    assert ops.summarize([record]).cache_hit_rate == 0.0

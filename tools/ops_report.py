@@ -29,6 +29,8 @@ def render(summary: OpsSummary, models: list[str]) -> str:
         f"p95 {_fmt(summary.wall_ms_p95, ' ms')}",
         f"Model calls per case-run (mean): {_fmt(summary.llm_calls_mean)}",
         f"Tokens per case-run: mean {_fmt(summary.tokens_mean)}, max {summary.tokens_max}",
+        "Prompt-cache hit rate (cached / all input tokens): "
+        + ("n/a" if summary.cache_hit_rate is None else f"{summary.cache_hit_rate:.1%}"),
         f"Most model-requested tool calls in one case-run: {summary.tool_calls_max}",
         f"Errors: {summary.errors}",
     ]
@@ -36,6 +38,11 @@ def render(summary: OpsSummary, models: list[str]) -> str:
         lines.append(f"Estimated cost: ${summary.estimated_cost_usd:.4f}")
     lines.append("p95 time per node:")
     lines += [f"  {name:<13} {ms:,.1f} ms" for name, ms in summary.node_ms_p95.items()]
+    if summary.cache_hit_rate_by_node:
+        lines.append("Prompt-cache hit rate by node:")
+        lines += [
+            f"  {name:<13} {rate:.1%}" for name, rate in summary.cache_hit_rate_by_node.items()
+        ]
     lines.append("Model calls by node (total):")
     lines += [f"  {name:<13} {n}" for name, n in summary.llm_calls_by_node.items()]
     if "policy_gate" not in summary.llm_calls_by_node:
@@ -48,10 +55,17 @@ def main() -> int:
     parser.add_argument("path", type=Path)
     parser.add_argument("--price-in", type=float, help="USD per 1M input tokens")
     parser.add_argument("--price-out", type=float, help="USD per 1M output tokens")
+    parser.add_argument(
+        "--price-cached", type=float, help="USD per 1M cached input tokens (default: input rate)"
+    )
     args = parser.parse_args()
     if (args.price_in is None) != (args.price_out is None):
         parser.error("pass both --price-in and --price-out, or neither")
-    prices = Prices(args.price_in, args.price_out) if args.price_in is not None else None
+    prices = (
+        Prices(args.price_in, args.price_out, args.price_cached)
+        if args.price_in is not None
+        else None
+    )
     records = read_records(args.path)
     models = sorted({str(r["model"]) for r in records})
     print(render(summarize(records, prices), models))
