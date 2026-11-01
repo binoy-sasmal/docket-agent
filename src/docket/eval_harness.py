@@ -55,6 +55,7 @@ from docket.graph.skeleton import (
     investigator,
     investigator_agent,
     policy_gate,
+    prompt_layout,
     proposer,
     proposer_justification,
     reconciler,
@@ -415,6 +416,11 @@ def agent_fingerprint() -> str:
         Path(__file__).parent / "graph" / "skeleton.py",
     ):
         digest.update(path.read_bytes())
+    # The prompt layout is runtime configuration, not source, so it is hashed
+    # separately. `default` adds nothing, keeping its fingerprint stable.
+    layout = prompt_layout()
+    if layout != "default":
+        digest.update(f"prompt_layout={layout}".encode())
     return digest.hexdigest()[:16]
 
 

@@ -55,6 +55,8 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - AgentOps: "added content-free tracing of every node, model call and tool call, an operations
   report, and a release gate that compares two runs case by case and fails on outcome, token,
   latency or step-budget regressions". Tested offline and run end to end in deterministic mode.
+  Never use the bare term: name its components (run tracing, ops report with cost and latency,
+  release gate, run replay, prompt-cache tracking) so an interviewer knows what was built.
 - Durable approval: "restart-safe, exactly-once human approval with an append-only audit trail,
   proven across separate processes", in the library and in the web UI. SQLite, single node, one
   UI worker.
@@ -68,6 +70,9 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Distributed or multi-node durability, concurrent approvers across machines, or Postgres-backed
   persistence.
 - Event streaming or Kafka; none exists in this system.
+- Any prompt-cache hit rate, cached-token saving, or result for the `shared_prefix` layout until
+  `ops-A.jsonl` / `ops-B.jsonl` from a live run exist; the layout and its tests exist, the
+  measurement does not.
 - Token, cost or latency figures for the model path, or a completed model-version comparison:
   no live-model ops run has been recorded. OpenTelemetry export, dashboards or production
   monitoring for Docket: the ops data is local JSONL.

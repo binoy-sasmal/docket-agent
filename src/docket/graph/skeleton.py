@@ -9,6 +9,7 @@ and tests.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
@@ -501,6 +502,64 @@ def _format_claims(claims: tuple[Claim, ...]) -> str:
     return "\n".join(_format_claim(claim) for claim in claims)
 
 
+PROMPT_LAYOUTS = ("default", "shared_prefix")
+"""How the Reconciler and Proposer prompts are laid out (DOCKET_PROMPT_LAYOUT).
+
+`default` is the layout every published result was measured on: each call has
+its own system prompt followed by the case data.
+
+`shared_prefix` is a context-engineering variant for provider prompt caching
+(Groq caches exact prompt prefixes for gpt-oss models). Both calls read the
+same claims, so it gives them an identical prefix -- one shared system prompt,
+then the claims -- and moves each task's instructions to the final message.
+The Proposer call then repeats the Reconciler call's prefix seconds later, so
+that prefix can be served from cache. The wording of each task is preserved;
+only its position changes. The Investigator, where untrusted text enters, is
+deliberately left alone.
+
+A layout other than `default` changes the agent fingerprint
+(docket.eval_harness.agent_fingerprint), so its results can never be merged
+with, or reported as, the default layout's.
+"""
+
+
+def prompt_layout() -> str:
+    layout = os.environ.get("DOCKET_PROMPT_LAYOUT", "default")
+    if layout not in PROMPT_LAYOUTS:
+        raise ValueError(f"DOCKET_PROMPT_LAYOUT must be one of {PROMPT_LAYOUTS}, got {layout!r}")
+    return layout
+
+
+_SHARED_NARRATIVE_SYSTEM_PROMPT = """You write short prose that a human \
+reviewer reads for an invoice-exception case. The next message lists the \
+case's claims; each ends with its evidence key(s) in brackets. Use only those \
+claims and anything the final message adds: introduce no fact, document, \
+amount, or note text that is not already in them. The final message names \
+your task."""
+
+_RECONCILER_TASK = """Task: reconciliation summary. Write a short summary for \
+a human reviewer that states only what the claims say. Two or three sentences."""
+
+_PROPOSER_TASK = """Task: approval justification. Write the justification a \
+human approver will read before deciding whether to approve this proposal -- \
+it is the only evidence summary the approver sees, so it must be \
+self-contained. Use only the claims above and the policy reason below. State \
+the disposition and why, and literally include every evidence key shown in \
+the claims, exactly as given, somewhere in your response -- do not paraphrase \
+or drop any of them. Do not invent evidence, do not claim anything was \
+approved already, and do not suggest the proposal can post itself -- it \
+cannot; a human must approve it. Two or three sentences plus the evidence keys.
+
+Policy reason: {reason}"""
+
+
+def _shared_prefix(reconciliation: Reconciliation) -> list[BaseMessage]:
+    return [
+        SystemMessage(_SHARED_NARRATIVE_SYSTEM_PROMPT),
+        HumanMessage(f"Claims:\n{_format_claims(reconciliation.claims)}"),
+    ]
+
+
 _RECONCILER_SYSTEM_PROMPT = """You write a short reconciliation summary for a \
 human reviewer, using only the claims listed below -- each ends with its \
 evidence key(s) in brackets. State only what the claims say; introduce no \
@@ -514,12 +573,14 @@ def reconciler_narrative(reconciliation: Reconciliation, model: BaseChatModel) -
     Reconciliation's own claims and computed fields -- so this call carries
     none of the untrusted-input exposure the Investigator has.
     """
-    response = model.invoke(
-        [
+    if prompt_layout() == "shared_prefix":
+        messages = [*_shared_prefix(reconciliation), HumanMessage(_RECONCILER_TASK)]
+    else:
+        messages = [
             SystemMessage(_RECONCILER_SYSTEM_PROMPT),
             HumanMessage(_format_claims(reconciliation.claims)),
         ]
-    )
+    response = model.invoke(messages)
     return str(response.content)
 
 
@@ -551,13 +612,18 @@ def proposer_justification(
     module's evidence-key grounding actually has to reach a human, not just
     a downstream data structure.
     """
-    response = model.invoke(
-        [
+    if prompt_layout() == "shared_prefix":
+        messages = [
+            *_shared_prefix(reconciliation),
+            HumanMessage(_PROPOSER_TASK.format(reason=policy.reason)),
+        ]
+    else:
+        messages = [
             SystemMessage(_PROPOSER_SYSTEM_PROMPT),
             HumanMessage(
                 f"Policy reason: {policy.reason}\n\n"
                 f"Claims:\n{_format_claims(reconciliation.claims)}"
             ),
         ]
-    )
+    response = model.invoke(messages)
     return str(response.content)

@@ -53,6 +53,7 @@ def main() -> int:
         ("p95 latency (ms)", b.wall_ms_p95, c.wall_ms_p95),
         ("mean tokens", b.tokens_mean, c.tokens_mean),
         ("mean model calls", b.llm_calls_mean, c.llm_calls_mean),
+        ("prompt-cache hit rate", b.cache_hit_rate, c.cache_hit_rate),
         ("errors", b.errors, c.errors),
     )
     print(f"{'':<22}{'baseline':>22}{'candidate':>22}")
