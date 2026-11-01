@@ -432,8 +432,11 @@ def run_agent_id(max_completion_tokens: int | None = None) -> str:
     The completion cap changes what the model is allowed to write, so two runs
     with different caps measure different configurations: the cap is part of
     the identity a resume file checks before merging results. The default cap
-    adds nothing, so existing resume files stay valid.
+    adds nothing, so existing resume files stay valid. A cap below 1 is
+    rejected rather than recorded, because no model call could run under it.
     """
+    if max_completion_tokens is not None and max_completion_tokens < 1:
+        raise ValueError("max_completion_tokens must be a positive integer")
     agent = agent_fingerprint()
     if max_completion_tokens is not None and max_completion_tokens != MAX_COMPLETION_TOKENS:
         agent += f"+max_completion_tokens={max_completion_tokens}"

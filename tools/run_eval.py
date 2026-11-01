@@ -25,6 +25,17 @@ from pathlib import Path
 from docket.eval_harness import EvalReport, run_eval
 
 
+def _positive_int(text: str) -> int:
+    """argparse type for --max-completion-tokens: zero or less is an error, not a default."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise argparse.ArgumentTypeError("--max-completion-tokens must be a positive integer")
+    return value
+
+
 def _format_rate(rate: float | None) -> str:
     return "N/A" if rate is None else f"{rate:.1%}"
 
@@ -120,13 +131,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--max-completion-tokens",
-        type=int,
+        type=_positive_int,
         metavar="N",
         help=(
-            "Override docket.llm.MAX_COMPLETION_TOKENS for this run. A non-default cap is "
-            "part of the resume file's identity, so runs with different caps never merge. "
-            "Lowering it can only cost evidence keys (counted against the agent), never "
-            "flatter the result."
+            "Override docket.llm.MAX_COMPLETION_TOKENS for this run. A different completion "
+            "cap changes the evaluated configuration. Runs with different caps are kept "
+            "separate; missing required evidence citations count as failures."
         ),
     )
     parser.add_argument(
@@ -144,10 +154,13 @@ def main() -> int:
         parser.error("--held-out requires --model: without a model nothing reads free text")
 
     model = None
+    # One effective cap, used for both the model and the run's identity.
+    cap = args.max_completion_tokens
     if args.model:
         from docket.llm import MAX_COMPLETION_TOKENS, get_chat_model
 
-        cap = args.max_completion_tokens or MAX_COMPLETION_TOKENS
+        if cap is None:
+            cap = MAX_COMPLETION_TOKENS
         model = get_chat_model(max_tokens=cap)
         print(f"Model completion cap: {cap} tokens")
 
@@ -158,7 +171,7 @@ def main() -> int:
             include_held_out=args.held_out,
             resume_path=resume_path,
             ops_path=Path(args.ops_out) if args.ops_out else None,
-            max_completion_tokens=args.max_completion_tokens,
+            max_completion_tokens=cap,
         )
     except Exception:
         if resume_path is not None:
