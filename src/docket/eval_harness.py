@@ -61,6 +61,7 @@ from docket.graph.skeleton import (
     reconciler,
     reconciler_narrative,
 )
+from docket.llm import MAX_COMPLETION_TOKENS
 from docket.tools.injection import (
     InjectionOverlay,
     load_held_out_overlays,
@@ -268,6 +269,7 @@ def _ops_record(
     outcome: dict[str, Any],
     recorder: ops.RunRecorder | None,
     tool_trajectory: tuple[str, ...] | None,
+    agent: str,
 ) -> dict[str, Any]:
     """One JSONL line per case-run. `ops` is None for a run reused from a
     resume file: it was not re-executed, so there is nothing to time."""
@@ -277,7 +279,7 @@ def _ops_record(
         "run": run,
         "overlay_kind": overlay_kind,
         "model": model_name,
-        "agent": agent_fingerprint(),
+        "agent": agent,
         "outcome": outcome,
         "tool_trajectory": list(tool_trajectory) if tool_trajectory is not None else None,
         "ops": trace.summary() if trace is not None else None,
@@ -424,6 +426,20 @@ def agent_fingerprint() -> str:
     return digest.hexdigest()[:16]
 
 
+def run_agent_id(max_completion_tokens: int | None = None) -> str:
+    """The agent fingerprint plus any non-default completion cap.
+
+    The completion cap changes what the model is allowed to write, so two runs
+    with different caps measure different configurations: the cap is part of
+    the identity a resume file checks before merging results. The default cap
+    adds nothing, so existing resume files stay valid.
+    """
+    agent = agent_fingerprint()
+    if max_completion_tokens is not None and max_completion_tokens != MAX_COMPLETION_TOKENS:
+        agent += f"+max_completion_tokens={max_completion_tokens}"
+    return agent
+
+
 def _model_name(model: BaseChatModel | None) -> str:
     if model is None:
         return "deterministic"
@@ -471,6 +487,7 @@ def run_eval(
     include_held_out: bool = False,
     resume_path: Path | None = None,
     ops_path: Path | None = None,
+    max_completion_tokens: int | None = None,
 ) -> EvalReport:
     """Run every golden case once (deterministic) or through a real model.
 
@@ -507,10 +524,9 @@ def run_eval(
     if model is not None:
         overlays_by_case = _overlays_by_case(include_held_out=include_held_out)
 
+    agent_id = run_agent_id(max_completion_tokens)
     store = (
-        ResumeStore(
-            resume_path, model_name=_model_name(model), agent=agent_fingerprint()
-        )
+        ResumeStore(resume_path, model_name=_model_name(model), agent=agent_id)
         if resume_path is not None
         else None
     )
@@ -571,6 +587,7 @@ def run_eval(
                         },
                         recorder=clean_recorder,
                         tool_trajectory=clean_tools,
+                        agent=agent_id,
                     )
                 )
 
@@ -623,6 +640,7 @@ def run_eval(
                             outcome={"injection_succeeded": injection_succeeded},
                             recorder=overlay_recorder,
                             tool_trajectory=overlay_tools,
+                            agent=agent_id,
                         )
                     )
                 injection_outcomes.append(injection_succeeded)

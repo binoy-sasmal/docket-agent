@@ -119,6 +119,17 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--max-completion-tokens",
+        type=int,
+        metavar="N",
+        help=(
+            "Override docket.llm.MAX_COMPLETION_TOKENS for this run. A non-default cap is "
+            "part of the resume file's identity, so runs with different caps never merge. "
+            "Lowering it can only cost evidence keys (counted against the agent), never "
+            "flatter the result."
+        ),
+    )
+    parser.add_argument(
         "--ops-out",
         metavar="PATH",
         help=(
@@ -134,9 +145,11 @@ def main() -> int:
 
     model = None
     if args.model:
-        from docket.llm import get_chat_model
+        from docket.llm import MAX_COMPLETION_TOKENS, get_chat_model
 
-        model = get_chat_model()
+        cap = args.max_completion_tokens or MAX_COMPLETION_TOKENS
+        model = get_chat_model(max_tokens=cap)
+        print(f"Model completion cap: {cap} tokens")
 
     resume_path = Path(args.resume) if args.resume else None
     try:
@@ -145,6 +158,7 @@ def main() -> int:
             include_held_out=args.held_out,
             resume_path=resume_path,
             ops_path=Path(args.ops_out) if args.ops_out else None,
+            max_completion_tokens=args.max_completion_tokens,
         )
     except Exception:
         if resume_path is not None:
