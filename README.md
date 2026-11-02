@@ -52,7 +52,7 @@ docs/PROJECT.md section 6. Deterministic mode is what CI gates on
 (`tests/test_eval_harness.py`, plus a dedicated `run_eval.py` CI step) --
 free, fast, no API key needed:
 
-| Metric | Deterministic (CI gate) | Live (Groq, `openai/gpt-oss-120b`) |
+| Metric | Deterministic (CI gate) | Live (Groq, `openai/gpt-oss-120b`, 2026-11-01/02) |
 |---|---|---|
 | Disposition accuracy | 100% (30/30) | 100% (30/30) |
 | Trajectory correctness | 100% (30/30) | 100% (30/30) |
@@ -62,15 +62,23 @@ Reproduce:
 
 ```
 python tools/run_eval.py                                                  # deterministic
-python tools/run_eval.py --model --held-out --resume evals/runs/final.json  # live
+python tools/run_eval.py --model --held-out --max-completion-tokens 1300 \
+    --resume evals/runs/A.json --ops-out evals/runs/ops-A.jsonl           # live
 ```
 
 The deterministic column is CI-gated on every push. The live column was
-measured 2026-09-06 to 2026-09-07: a full live run does not fit in the free
-tier's daily token budget, so it ran across two sittings with `--resume`,
-15 case-runs banked on the first day and 23 on the second. The harness
-refuses to merge results measured on a different model or with different
-agent code, so the two days describe one system, not an average of two.
+re-measured on the current agent, including the note-hypothesis model call,
+with `--max-completion-tokens 1300`: at the default 1,500 one case exceeds the
+free tier's 8,000-token per-request ceiling. A full live run does not fit in
+the free tier's daily token budget, so the 38 case-runs were banked across two
+days with `--resume`, 17 on the first and 21 on the second. The harness
+refuses to merge results measured on a different model, different agent code
+or a different completion cap, so the two days describe one system, not an
+average of two.
+
+The first live run (2026-09-06/07, before note hypotheses existed) was also
+0/8. This is the held-out payloads' second run; no change was made to the agent
+in response to either result.
 
 **All eight injection overlays were resisted, including all four held-out
 ones.** The held-out payloads were authored in a session with no repository
@@ -180,7 +188,8 @@ Read those numbers with these in hand:
   claim is measured only by the live run above.
 - **This adds a model call to the Investigator** whenever a fetched document
   carries a note, which includes the existing injection overlays. The
-  published injection results in "Status" were measured before it existed.
+  injection results in "Status" were re-measured with this call in place
+  (2026-11-01/02).
 
 ### Connected mode
 
@@ -245,7 +254,7 @@ python tools/replay_case.py 4507000477_00060 [--model]         # one case, step 
   zero model calls; the report prints that count. `interrupt()` is recorded as
   a pause awaiting a human, not as a failure.
 
-#### Prompt-cache experiment (set up, not yet run)
+#### Prompt-cache experiment (result below)
 
 Groq caches exact prompt prefixes for `gpt-oss-120b` and reports the cached
 part as `prompt_tokens_details.cached_tokens`; the tracer records it per node.
@@ -260,33 +269,52 @@ text enters, is unchanged. A non-default layout changes the agent fingerprint,
 so its results are never merged with the default's.
 
 ```
-python tools/run_eval.py --model --resume evals/runs/A.json --ops-out evals/runs/ops-A.jsonl
-DOCKET_PROMPT_LAYOUT=shared_prefix python tools/run_eval.py --model \
-    --resume evals/runs/B.json --ops-out evals/runs/ops-B.jsonl
+python tools/run_eval.py --model --held-out --max-completion-tokens 1300 \
+    --resume evals/runs/A.json --ops-out evals/runs/ops-A.jsonl
+DOCKET_PROMPT_LAYOUT=shared_prefix python tools/run_eval.py --model --held-out \
+    --max-completion-tokens 1300 --resume evals/runs/B.json --ops-out evals/runs/ops-B.jsonl
 python tools/compare_runs.py evals/runs/ops-A.jsonl evals/runs/ops-B.jsonl
 python tools/ops_report.py evals/runs/ops-B.jsonl --price-in <in> --price-out <out> --price-cached <cached>
 ```
 
 The candidate passes only if every disposition, trajectory and injection
 outcome holds, tokens and latency stay within limits, and the cache hit rate
-does not fall. Caching is best-effort on the provider side, and the minimum
+does not fall by more than 20 points. Caching is best-effort on the provider side, and the minimum
 cacheable prefix is model-dependent (128 to 1,024 tokens per Groq's docs), so
 small cases may show no hits at all: report whatever the run shows. Adding
 `--held-out` re-runs the held-out attacks against a changed agent; the agent
 was not tuned against them, but say that they had been run once before.
 
-Measured so far: the deterministic run (30 case-runs, no model, on a
-laptop) has a p95 of about 94 ms per case-run, almost all of it fixture
-loading before the first node. No live-model ops run or two-model comparison
-has been made yet, so there are no token, cost or latency figures for the
-model path.
+Measured (2026-11-01/02, `openai/gpt-oss-120b` on Groq's free tier,
+completion cap 1,300, temperature 0):
+
+- **Run A, default layout: complete, 38/38 case-runs.** Per case-run: median
+  27.5 s, p95 78.5 s, 5.2 model calls and about 5,600 tokens on average, 0
+  errors, and 0 model calls in the policy gate. 21.6% of input tokens were
+  served from the prompt cache: Investigator 25.2%, Proposer 1.8%,
+  Reconciler 0%.
+- **Run B, `shared_prefix`: stopped at 17/38.** Some of its requests (8,546
+  to 8,689 tokens) exceed the free tier's 8,000-token per-request ceiling, so
+  it cannot finish at this cap; a retry failed the same way.
+- **On the 17 case-runs both runs share,** B lowered the cache hit rate from
+  28.0% to 11.8%, used 3% more tokens, and raised median latency from 29.2 s to
+  37.3 s (p95 fell from 113.3 s to 83.7 s). Every disposition, trajectory and
+  injection outcome held. The release gate passed B because its cache limit is
+  a 20-point drop and this was 16.
+
+**The default layout stays.** Seventeen case-runs at temperature 0 are one
+sample, and the cause of the drop was not investigated. No prices were
+applied, so there are no cost figures. The deterministic run (30 case-runs, no
+model, on a laptop) has a p95 of about 94 ms per case-run, almost all of it
+fixture loading before the first node.
 
 ## Known limits
 
 - **Operations data is local and offline.** `docket.ops` writes JSONL for
   eval runs and replays; it does not export OpenTelemetry, runs no
-  dashboard, and has never observed a deployed service. No live-model ops
-  run or model comparison has been recorded yet.
+  dashboard, and has never observed a deployed service. One live run is
+  traced (38 case-runs, free tier, no prices applied); no two-model
+  comparison has been made.
 
 Volunteering these is what makes the rest of the claims worth reading
 (docs/PROJECT.md section 8). None of them is a defect to be fixed later;

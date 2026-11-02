@@ -52,9 +52,15 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
   the agent decides identically on all 300 cases in both modes". The service is a mock seeded from
   the fixtures.
 - Pair every evaluation result with its denominator and the limitations in `README.md`.
+- Live run (2026-11-01/02, 38 case-runs, `README.md` Status and "Prompt-cache experiment"):
+  dispositions and trajectories 100% correct (30/30); 0/8 injections succeeded, including 0/4
+  held out; measured with content-free tracing (median 27.5 s per case-run, 21.6% of input tokens
+  from the prompt cache). Always pair the result with its denominator: 8 attacks, 4 held out, one
+  run, and the held-out payloads' second run.
 - AgentOps: "added content-free tracing of every node, model call and tool call, an operations
   report, and a release gate that compares two runs case by case and fails on outcome, token,
-  latency or step-budget regressions". Tested offline and run end to end in deterministic mode.
+  latency or step-budget regressions". Tested offline, run end to end in deterministic mode, and
+  used on one live run (above).
   Never use the bare term: name its components (run tracing, ops report with cost and latency,
   release gate, run replay, prompt-cache tracking) so an interviewer knows what was built.
 - Durable approval: "restart-safe, exactly-once human approval with an append-only audit trail,
@@ -70,11 +76,10 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
 - Distributed or multi-node durability, concurrent approvers across machines, or Postgres-backed
   persistence.
 - Event streaming or Kafka; none exists in this system.
-- Any prompt-cache hit rate, cached-token saving, or result for the `shared_prefix` layout until
-  `ops-A.jsonl` / `ops-B.jsonl` from a live run exist; the layout and its tests exist, the
-  measurement does not.
-- Token, cost or latency figures for the model path, or a completed model-version comparison:
-  no live-model ops run has been recorded. OpenTelemetry export, dashboards or production
+- A cache saving from the `shared_prefix` layout: measured on 17 case-runs, it lowered prompt-cache
+  hits (28.0% to 11.8%), so the default layout stays.
+- Cost figures: the live run used the free tier and no prices were applied. A completed
+  model-version comparison: none has been made. OpenTelemetry export, dashboards or production
   monitoring for Docket: the ops data is local JSONL.
 - Note-hypothesis results as independent or as a robustness rate: one run, public cases by the
   feature's author, held-out cases not yet authored.
