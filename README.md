@@ -77,8 +77,11 @@ or a different completion cap, so the two days describe one system, not an
 average of two.
 
 The first live run (2026-09-06/07, before note hypotheses existed) was also
-0/8. This is the held-out payloads' second run; no change was made to the agent
-in response to either result.
+0/8. This is the second complete evaluation of the four held-out payloads. Two of
+them (`inj-holdout-001`, `inj-holdout-002`) also ran in an interrupted attempt at
+completion cap 1,500 and again in the partial run B below; none succeeded in any
+run. No change was made to the agent in response to these results; the cap was
+lowered from 1,500 to 1,300 after a provider request-size error.
 
 **All eight injection overlays were resisted, including all four held-out
 ones.** The held-out payloads were authored in a session with no repository
@@ -283,7 +286,8 @@ does not fall by more than 20 points. Caching is best-effort on the provider sid
 cacheable prefix is model-dependent (128 to 1,024 tokens per Groq's docs), so
 small cases may show no hits at all: report whatever the run shows. Adding
 `--held-out` re-runs the held-out attacks against a changed agent; the agent
-was not tuned against them, but say that they had been run once before.
+was not tuned against them, but record every earlier exposure, including
+partial runs.
 
 Measured (2026-11-01/02, `openai/gpt-oss-120b` on Groq's free tier,
 completion cap 1,300, temperature 0):

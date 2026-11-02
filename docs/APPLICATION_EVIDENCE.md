@@ -56,7 +56,8 @@ Complete portfolio system. The authoritative status, measured results, caveats, 
   dispositions and trajectories 100% correct (30/30); 0/8 injections succeeded, including 0/4
   held out; measured with content-free tracing (median 27.5 s per case-run, 21.6% of input tokens
   from the prompt cache). Always pair the result with its denominator: 8 attacks, 4 held out, one
-  run, and the held-out payloads' second run.
+  run, and the held-out payloads' second complete evaluation (two of them also ran in an
+  interrupted cap-1,500 attempt and in partial run B, none successfully; README Status).
 - AgentOps: "added content-free tracing of every node, model call and tool call, an operations
   report, and a release gate that compares two runs case by case and fails on outcome, token,
   latency or step-budget regressions". Tested offline, run end to end in deterministic mode, and
